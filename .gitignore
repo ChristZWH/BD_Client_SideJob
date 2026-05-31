@@ -12,4 +12,16 @@
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+*.apk
+*.aab
+*.dex
+*.class
+*.log
+/gen
+/generated
+/app/build
+*.jar
+*.aar
+/gradle/wrapper/gradle-wrapper.jar
+gradle/gradle-daemon-jvm.properties
+*.pro
