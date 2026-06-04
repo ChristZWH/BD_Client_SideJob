@@ -26,3 +26,10 @@
 gradle/gradle-daemon-jvm.properties
 *.pro
 TodoList.md
+output.md
+.idea/gradle.xml
+.idea/misc.xml
+.idea/deviceManager.xml
+.idea/*
+/.idea/*
+next.md
