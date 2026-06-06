@@ -14,11 +14,11 @@ import androidx.media3.exoplayer.ExoPlayer;
  */
 public class VideoPlayerController {
 
-    /** ExoPlayer 实例 */
+    /** ExoPlayer 是控制视频播放的核心引擎，负责解码、播放、暂停、进度控制等底层功能 */
     private ExoPlayer player;
-    /** 视频显示的 SurfaceView */
+    /** 视频显示的 SurfaceView 是视频组件，ExoPlayer 将解码后的视频帧渲染到这个 Surface 上*/
     private SurfaceView surfaceView;
-    /** 播放状态监听器 */
+    /** VideoPlayerController 内部持有 ———— 播放状态监听器 */
     private PlayStateListener playStateListener;
     /** 当前播放位置 */
     private long currentPosition = 0;
@@ -26,7 +26,7 @@ public class VideoPlayerController {
     private boolean isPrepared = false;
 
     /**
-     * 播放状态监听器接口
+     * 播放状态监听器接口————专门为 VideoPlayerController 设计的回调接口
      * 用于回调播放状态变化、进度更新、错误信息和准备完成
      */
     public interface PlayStateListener {
@@ -65,50 +65,51 @@ public class VideoPlayerController {
 
         // 创建 ExoPlayer 实例
         player = new ExoPlayer.Builder(context).build();
-        // 设置视频输出 Surface
+        // 设置视频输出 Surface，将播放器与显示视图绑定
         player.setVideoSurfaceView(surfaceView);
 
         // 添加播放器监听器
-        player.addListener(new Player.Listener() {
+        player.addListener(new Player.Listener() { // ExoPlayer的系统回调
             @Override
-            public void onIsPlayingChanged(boolean isPlaying) {
+            public void onIsPlayingChanged(boolean isPlaying) { // 播放/暂停状态变化时（系统触发，VideoPlayerController 收到的具体回调，通知外部播放状态变化）
                 android.util.Log.d("VideoPlayer", "onIsPlayingChanged: " + isPlaying);
                 if (playStateListener != null) {
-                    playStateListener.onPlayStateChanged(isPlaying);
+                    playStateListener.onPlayStateChanged(isPlaying); // 转发给自定义回调
                 }
             }
 
             @Override
-            public void onPlaybackStateChanged(int playbackState) {
+            public void onPlaybackStateChanged(int playbackState) { // 播放状态（准备中/就绪/播放中/结束）变化时（系统触发，VideoPlayerController 收到的具体回调，处理不同播放状态下的逻辑）
                 android.util.Log.d("VideoPlayer", "onPlaybackStateChanged: " + playbackState);
                 
-                // 视频准备完成
+                // 视频解析完之后，会触发更新UI状态
                 if (playbackState == Player.STATE_READY && !isPrepared) {
                     isPrepared = true;
                     android.util.Log.d("VideoPlayer", "Video prepared, duration: " + player.getDuration());
                     if (playStateListener != null) {
-                        playStateListener.onPrepared();
+                        playStateListener.onPrepared(); // 转发给外部回调（onPrepared() 被调用后，在 VideoPlayerView 中的处理）
                     }
                 } 
-                // 缓冲中
+                // 视频缓冲中时，会触发onPlaybackStateChanged回调，更新UI状态为缓冲中
                 else if (playbackState == Player.STATE_BUFFERING) {
                     android.util.Log.d("VideoPlayer", "Video buffering...");
-                } 
-                // 播放结束
+                    // 后续根据业务需求继续扩展
+                }
+                // 视频播放结束时，会触发onPlaybackStateChanged回调，更新UI状态为结束
                 else if (playbackState == Player.STATE_ENDED) {
                     android.util.Log.d("VideoPlayer", "Video ended");
                 } 
-                // 空闲状态
+                // 视频空闲时，会触发onPlaybackStateChanged回调，更新UI状态为空空闲
                 else if (playbackState == Player.STATE_IDLE) {
                     android.util.Log.d("VideoPlayer", "Video idle");
                 }
             }
 
             @Override
-            public void onPlayerError(androidx.media3.common.PlaybackException error) {
+            public void onPlayerError(androidx.media3.common.PlaybackException error) { // 播放出错时（系统触发，VideoPlayerController 收到的具体回调，通知外部错误信息处理）
                 android.util.Log.e("VideoPlayer", "Player error: " + error.getMessage(), error);
                 if (playStateListener != null) {
-                    playStateListener.onError(error.getMessage());
+                    playStateListener.onError(error.getMessage()); // 转发给自定义回调
                 }
             }
         });
@@ -125,14 +126,16 @@ public class VideoPlayerController {
         }
         android.util.Log.d("VideoPlayer", "Setting video URL: " + url);
         
-        // 重置状态
+        // 重置状态 清除上一个状态，避免混淆
         isPrepared = false;
         currentPosition = 0;
         
-        // 创建媒体项
+        // 创建媒体项 是ExoPayer的固定流程，封装了视频的URL、标题、字幕等信息；ExoPlayer需要通过MediaItem来了解要播什么内容
         MediaItem mediaItem = MediaItem.fromUri(Uri.parse(url));
-        player.setMediaItem(mediaItem);
-        // 开始准备视频（异步操作）
+        player.setMediaItem(mediaItem); // 设置视频资源
+        // 开始准备视频（异步操作），开始视频解析
+        // 下载视频元数据（时长、分辨率），初始化解码器，缓冲初始数据
+        // 准备完成之后，会触发onPlaybackStateChanged回调，更新UI状态
         player.prepare();
         android.util.Log.d("VideoPlayer", "Video prepare called");
     }
@@ -159,7 +162,7 @@ public class VideoPlayerController {
     }
 
     /**
-     * 跳转到指定位置
+     * 跳转到指定位置（实现进度条拖动）
      * @param position 目标位置（毫秒）
      */
     public void seekTo(long position) {

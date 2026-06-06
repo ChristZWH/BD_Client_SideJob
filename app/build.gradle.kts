@@ -1,14 +1,11 @@
 plugins {
+    // Android Application Plugin - Version defined in gradle/libs.versions.toml
     alias(libs.plugins.android.application)
 }
 
 android {
     namespace = "com.example.bd_client_sidejob"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.bd_client_sidejob"

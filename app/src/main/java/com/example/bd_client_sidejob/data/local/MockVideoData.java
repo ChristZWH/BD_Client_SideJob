@@ -106,13 +106,13 @@ public class MockVideoData {
 
     public static List<Video> getMockVideos() {
         List<Video> videos = new ArrayList<>();
-        for (int i = 0; i < 15; i++) {
+        for (int i = 0; i < 15; i++) {  // 这里是写死的数据，一共有15条
             Video video = new Video();
             video.setVideoId("video_" + (i + 1));
             
             // 根据配置选择使用本地视频还是网络视频
             String videoUrl;
-            if (USE_LOCAL_VIDEOS) {
+            if (USE_LOCAL_VIDEOS) { // 当前不使用本地资源
                 // 使用本地资源文件
                 videoUrl = "android.resource://com.example.bd_client_sidejob/raw/" + LOCAL_VIDEO_RESOURCE_NAME;
             } else {

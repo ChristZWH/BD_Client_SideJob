@@ -24,7 +24,7 @@ import com.example.bd_client_sidejob.util.VideoPlayerController;
  */
 public class VideoPlayerView extends ConstraintLayout {
 
-    /** 视频显示 SurfaceView */
+    /** 视频显示 SurfaceView就是一个硬件加速的画布，提供独立的绘制表面，不参与UI线程竞争，ExoPlayer解码后的视频帧“画”到这个Surface上 */
     private SurfaceView surfaceView;
     /** 播放/暂停按钮 */
     private ImageView ivPlayPause;
@@ -73,7 +73,7 @@ public class VideoPlayerView extends ConstraintLayout {
     private Video pendingVideo = null;
 
     /**
-     * 构造函数
+     * 构造函数（代码中创建调用）
      * @param context 上下文
      */
     public VideoPlayerView(Context context) {
@@ -82,7 +82,7 @@ public class VideoPlayerView extends ConstraintLayout {
     }
 
     /**
-     * 构造函数
+     * 构造函数（XML 中创建时调用，读取XML 属性）
      * @param context 上下文
      * @param attrs 属性集
      */
@@ -92,7 +92,7 @@ public class VideoPlayerView extends ConstraintLayout {
     }
 
     /**
-     * 构造函数
+     * 构造函数（指定默认样式时调用）
      * @param context 上下文
      * @param attrs 属性集
      * @param defStyleAttr 默认样式属性
@@ -107,7 +107,7 @@ public class VideoPlayerView extends ConstraintLayout {
      * @param context 上下文
      */
     private void init(Context context) {
-        // 加载布局
+        // 加载布局（三个参数：XML布局文件、父容器-当前的VideoPlayerView、是否将布局添加到父容器中）
         LayoutInflater.from(context).inflate(R.layout.layout_video_player, this, true);
 
         // 绑定视图
@@ -127,7 +127,7 @@ public class VideoPlayerView extends ConstraintLayout {
         llInteraction = findViewById(R.id.llInteraction);
         controlContainer = findViewById(R.id.controlContainer);
 
-        // 初始化 Handler
+        // 初始化 Handler。Handler 是 Android 的消息机制核心：用于线程间通信，可以延迟执行任务，这里用于 3秒后自动隐藏控制栏
         hideControlsHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
         // 设置 SurfaceView 监听
@@ -147,8 +147,8 @@ public class VideoPlayerView extends ConstraintLayout {
             public void surfaceCreated(android.view.SurfaceHolder holder) {
                 android.util.Log.d("VideoPlayerView", "Surface created");
                 isSurfaceReady = true;
-                
-                // 如果有待播放的视频，现在开始播放
+
+                // 如果 Surface 创建前就有待播放的视频，现在 Surface 准备好了，就开始播放
                 if (pendingVideo != null && playerController != null) {
                     android.util.Log.d("VideoPlayerView", "Playing pending video");
                     setVideoInternal(pendingVideo);
@@ -190,6 +190,7 @@ public class VideoPlayerView extends ConstraintLayout {
 
         // 进度条拖动事件
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            // progress: 进度条当前进度值，fromUser: 是否由用户拖动触发（true=用户拖动，false=程序设置）只在用户拖动时才跳转，避免循环调用
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser && playerController != null) {
@@ -208,7 +209,7 @@ public class VideoPlayerView extends ConstraintLayout {
             }
         });
 
-        // 点击视频区域切换控制栏显示
+        // 点击视频区域切换控制栏显示/隐藏
         surfaceView.setOnClickListener(v -> {
             toggleControls();
         });
@@ -238,9 +239,10 @@ public class VideoPlayerView extends ConstraintLayout {
                     }
                 }
 
+                // 播放器状态——>更新UI（与前面的onProgressChanged进行对比）
                 @Override
                 public void onProgressChanged(long position, long duration) {
-                    // 更新进度显示
+                    // 更新进度显示，position是当前播放位置
                     updateProgress(position, duration);
                 }
 
@@ -251,11 +253,11 @@ public class VideoPlayerView extends ConstraintLayout {
                 }
 
                 @Override
-                public void onPrepared() {
+                public void onPrepared() { // 视频解析完毕后Controller会回调
                     // 视频准备完成，隐藏进度条
                     progressBar.setVisibility(View.GONE);
                     long duration = playerController.getDuration();
-                    tvTotalTime.setText(formatTime(duration));
+                    tvTotalTime.setText(formatTime(duration)); // 设置总时长
                     seekBar.setMax((int) duration);
 
                     // 视频准备好后，如果设置了自动播放，则开始播放
@@ -284,11 +286,11 @@ public class VideoPlayerView extends ConstraintLayout {
             tvCollectCount.setText(video.getFormattedCollectCount());
             tvShareCount.setText(video.getFormattedShareCount());
 
-            // 加载作者头像
+            // 加载作者头像(Glide 是 Android 最流行的图片加载库，自动处理缓存、异步加载、占位图等)
             Glide.with(getContext())
-                    .load(video.getAvatar())
-                    .circleCrop()
-                    .into(ivAvatar);
+                    .load(video.getAvatar()) // 图片URL
+                    .circleCrop() // 圆形裁剪
+                    .into(ivAvatar); // 目标
 
             // 如果 Surface 已准备好，直接设置视频 URL
             if (isSurfaceReady && playerController != null) {
@@ -307,6 +309,7 @@ public class VideoPlayerView extends ConstraintLayout {
      */
     private void setVideoInternal(Video video) {
         if (playerController != null) {
+            // 转圈动画，加载进度条
             progressBar.setVisibility(View.VISIBLE);
             playerController.setVideoUrl(video.getUrl());
         }

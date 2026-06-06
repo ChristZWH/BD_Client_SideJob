@@ -27,7 +27,7 @@ public class VideoRepositoryImpl implements VideoRepository {
             List<Video> videos = MockVideoData.getVideosByPage(page, pageSize);
             boolean hasMore = MockVideoData.hasMorePages(page, pageSize);
             VideoList videoList = new VideoList(videos, page, hasMore);
-            callback.onSuccess(videoList);
+            callback.onSuccess(videoList); // 加载成功则传递视频列表给回调函数
         } catch (Exception e) {
             callback.onError(e.getMessage());
         }
