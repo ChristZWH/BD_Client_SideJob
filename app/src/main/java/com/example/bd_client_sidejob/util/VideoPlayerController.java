@@ -87,7 +87,7 @@ public class VideoPlayerController {
                     isPrepared = true;
                     android.util.Log.d("VideoPlayer", "Video prepared, duration: " + player.getDuration());
                     if (playStateListener != null) {
-                        playStateListener.onPrepared(); // 转发给外部回调（onPrepared() 被调用后，在 VideoPlayerView 中的处理）
+                        playStateListener.onPrepared(); // 转发给外部VidowPlayerView回调（onPrepared() 被调用后，在 VideoPlayerView 中的处理）
                     }
                 } 
                 // 视频缓冲中时，会触发onPlaybackStateChanged回调，更新UI状态为缓冲中
@@ -135,7 +135,7 @@ public class VideoPlayerController {
         player.setMediaItem(mediaItem); // 设置视频资源
         // 开始准备视频（异步操作），开始视频解析
         // 下载视频元数据（时长、分辨率），初始化解码器，缓冲初始数据
-        // 准备完成之后，会触发onPlaybackStateChanged回调，更新UI状态
+        // 准备完成之后，player的Listener会触发onPlaybackStateChanged回调，更新UI状态
         player.prepare();
         android.util.Log.d("VideoPlayer", "Video prepare called");
     }
