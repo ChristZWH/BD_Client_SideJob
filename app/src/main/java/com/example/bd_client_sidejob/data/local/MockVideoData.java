@@ -33,39 +33,39 @@ public class MockVideoData {
     private static final String LOCAL_VIDEO_RESOURCE_NAME = "sample_video";
 
     private static final String[] COVER_URLS = {
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ElephantsDream.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerBlazes.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerEscapes.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerFun.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerJoyrides.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ForBiggerMeltdowns.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/SubaruOutbackOnStreetAndDirt.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/TearsOfSteel.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/VolkswagenGTIReview.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/WeAreGoingOnBullrun.jpg",
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/WhatCarCanYouGetForAGrand.jpg",
-            "https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg",
-            "https://storage.googleapis.com/gtv-videos-bucket/sample/images/ElephantsDream.jpg"
+            "https://placehold.co/400x225/FF6B6B/FFFFFF/png?text=Video+1",
+            "https://placehold.co/400x225/4ECDC4/FFFFFF/png?text=Video+2",
+            "https://placehold.co/400x225/45B7D1/FFFFFF/png?text=Video+3",
+            "https://placehold.co/400x225/FFA07A/FFFFFF/png?text=Video+4",
+            "https://placehold.co/400x225/98D8C8/FFFFFF/png?text=Video+5",
+            "https://placehold.co/400x225/F7DC6F/000000/png?text=Video+6",
+            "https://placehold.co/400x225/BB8FCE/FFFFFF/png?text=Video+7",
+            "https://placehold.co/400x225/85C1E2/FFFFFF/png?text=Video+8",
+            "https://placehold.co/400x225/F8B739/FFFFFF/png?text=Video+9",
+            "https://placehold.co/400x225/52BE80/FFFFFF/png?text=Video+10",
+            "https://placehold.co/400x225/EC7063/FFFFFF/png?text=Video+11",
+            "https://placehold.co/400x225/AF7AC5/FFFFFF/png?text=Video+12",
+            "https://placehold.co/400x225/5DADE2/FFFFFF/png?text=Video+13",
+            "https://placehold.co/400x225/48C9B0/FFFFFF/png?text=Video+14",
+            "https://placehold.co/400x225/F4D03F/000000/png?text=Video+15"
     };
 
     private static final String[] AVATAR_URLS = {
-            "https://picsum.photos/seed/user1/100/100",
-            "https://picsum.photos/seed/user2/100/100",
-            "https://picsum.photos/seed/user3/100/100",
-            "https://picsum.photos/seed/user4/100/100",
-            "https://picsum.photos/seed/user5/100/100",
-            "https://picsum.photos/seed/user6/100/100",
-            "https://picsum.photos/seed/user7/100/100",
-            "https://picsum.photos/seed/user8/100/100",
-            "https://picsum.photos/seed/user9/100/100",
-            "https://picsum.photos/seed/user10/100/100",
-            "https://picsum.photos/seed/user11/100/100",
-            "https://picsum.photos/seed/user12/100/100",
-            "https://picsum.photos/seed/user13/100/100",
-            "https://picsum.photos/seed/user14/100/100",
-            "https://picsum.photos/seed/user15/100/100"
+            "https://placehold.co/100x100/FF6B6B/FFFFFF/png?text=U1",
+            "https://placehold.co/100x100/4ECDC4/FFFFFF/png?text=U2",
+            "https://placehold.co/100x100/45B7D1/FFFFFF/png?text=U3",
+            "https://placehold.co/100x100/FFA07A/FFFFFF/png?text=U4",
+            "https://placehold.co/100x100/98D8C8/FFFFFF/png?text=U5",
+            "https://placehold.co/100x100/F7DC6F/000000/png?text=U6",
+            "https://placehold.co/100x100/BB8FCE/FFFFFF/png?text=U7",
+            "https://placehold.co/100x100/85C1E2/FFFFFF/png?text=U8",
+            "https://placehold.co/100x100/F8B739/FFFFFF/png?text=U9",
+            "https://placehold.co/100x100/52BE80/FFFFFF/png?text=U10",
+            "https://placehold.co/100x100/EC7063/FFFFFF/png?text=U11",
+            "https://placehold.co/100x100/AF7AC5/FFFFFF/png?text=U12",
+            "https://placehold.co/100x100/5DADE2/FFFFFF/png?text=U13",
+            "https://placehold.co/100x100/48C9B0/FFFFFF/png?text=U14",
+            "https://placehold.co/100x100/F4D03F/000000/png?text=U15"
     };
 
     private static final String[] TITLES = {
@@ -169,6 +169,23 @@ public class MockVideoData {
             }
         }
         return results;
+    }
+
+    /**
+     * 获取相关搜索关键词（用于视频播放页面底部）
+     * @return 关键词数组
+     */
+    public static String[] getRelatedSearchKeywords() {
+        return new String[]{
+                "东北爱情故事",
+                "闪婚玫瑰",
+                "短剧",
+                "逆袭",
+                "霸总",
+                "穿越",
+                "重生",
+                "赘婿"
+        };
     }
 
     /**

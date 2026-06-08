@@ -1,8 +1,13 @@
 package com.example.bd_client_sidejob.ui.main;
 
-import android.os.Bundle;
+import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
@@ -12,18 +17,24 @@ import com.example.bd_client_sidejob.R;
 import com.example.bd_client_sidejob.base.BaseActivity;
 import com.example.bd_client_sidejob.data.model.Video;
 import com.example.bd_client_sidejob.ui.main.adapter.VideoFeedAdapter;
+import com.example.bd_client_sidejob.ui.searchresult.SearchResultActivity;
 import com.example.bd_client_sidejob.util.VideoPlayerController;
+import com.example.bd_client_sidejob.ui.search.SearchActivity;
 import com.example.bd_client_sidejob.widget.VideoPlayerView;
 
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.ArrayList;
 
 /**
  * 主活动类 - 视频播放应用的主入口
  * 采用 MVP 架构模式，作为 View 层负责 UI 展示和用户交互
  */
 public class MainActivity extends BaseActivity<MainContract.Presenter> implements MainContract.View {
+
+    /** Intent 传递视频ID的常量 */
+    public static final String EXTRA_VIDEO_ID = "extra_video_id";
 
     /** ViewPager2 组件 - 用于实现垂直滑动的视频列表 */
     private ViewPager2 viewPager;
@@ -37,6 +48,28 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
      * WeakHashMap 的特性：当 key 不再被强引用时会自动被 GC 回收
      */
     private Map<Integer, VideoPlayerController> playerControllers = new WeakHashMap<>();
+
+    // 搜索相关组件
+    private LinearLayout llTopSearch;
+    private ImageView ivBack;
+    private TextView tvListen;
+    private ImageView ivAdd;
+    private ImageView ivMore;
+    private LinearLayout llSearchArea;
+
+    // 底部相关搜索组件
+    private LinearLayout llRelatedSearch;
+    private TextView tvRelatedSearch;
+    private ImageView ivRelatedArrow;
+
+    // 相关搜索数据
+    private List<String> relatedKeywords = new ArrayList<>();
+    private int currentRelatedIndex = 0;
+
+    // 轮播相关
+    private Handler carouselHandler;
+    private Runnable carouselRunnable;
+    private static final long CAROUSEL_INTERVAL = 3000; // 轮播间隔（毫秒）
 
     /**
      * 获取布局资源ID
@@ -67,6 +100,59 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
         // 获取布局中的控件实例
         viewPager = findViewById(R.id.viewPager);
         progressBar = findViewById(R.id.progressBar);
+
+        // 初始化搜索相关组件
+        llTopSearch = findViewById(R.id.llTopSearch);
+        ivBack = findViewById(R.id.ivBack);
+        tvListen = findViewById(R.id.tvListen);
+        ivAdd = findViewById(R.id.ivAdd);
+        ivMore = findViewById(R.id.ivMore);
+        llSearchArea = findViewById(R.id.llSearchArea);
+
+        // 初始化底部相关搜索组件
+        llRelatedSearch = findViewById(R.id.llRelatedSearch);
+        tvRelatedSearch = findViewById(R.id.tvRelatedSearch);
+        ivRelatedArrow = findViewById(R.id.ivRelatedArrow);
+
+        // 创建监听器
+        setupListeners();
+    }
+
+    // 注册各种监听事件
+    private void setupListeners() {
+        // 设置搜索区域点击事件 - 视频播放页面跳转到搜索页面
+        llSearchArea.setOnClickListener(v -> {
+            Intent intent = new Intent(this, SearchActivity.class);
+            startActivity(intent);
+        });
+
+        // 设置 相关搜索 点击事件 - 视频播放页面跳转到搜索页面
+        llRelatedSearch.setOnClickListener(v -> {
+            // 跳转到搜索结果页面
+            if (!relatedKeywords.isEmpty()) {
+                Intent intent = new Intent(this, SearchResultActivity.class);
+                intent.putExtra(SearchResultActivity.EXTRA_KEYWORD, relatedKeywords.get(currentRelatedIndex));
+                startActivity(intent);
+            }
+        });
+
+        // 设置返回按钮
+        ivBack.setOnClickListener(v -> finish());
+
+        // 设置听按钮
+        tvListen.setOnClickListener(v -> {
+            Toast.makeText(this, "听功能待接入", Toast.LENGTH_SHORT).show();
+        });
+
+        // 设置添加按钮
+        ivAdd.setOnClickListener(v -> {
+            Toast.makeText(this, "添加功能待接入", Toast.LENGTH_SHORT).show();
+        });
+
+        // 设置更多按钮
+        ivMore.setOnClickListener(v -> {
+            Toast.makeText(this, "更多功能待接入", Toast.LENGTH_SHORT).show();
+        });
 
         // 创建视频列表适配器并绑定到 ViewPager2
         adapter = new VideoFeedAdapter(this);
@@ -121,6 +207,8 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
             // 加载第0页，每页5条数据
             mPresenter.loadVideos(0, 5);
         }
+        // 加载相关搜索数据
+        loadRelatedSearch();
     }
 
     /**
@@ -155,7 +243,7 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
                 VideoPlayerController controller = playerControllers.get(position);
                 if (controller == null) {
                     controller = new VideoPlayerController();  // 创建新控制器
-                    controller.initialize(this, playerView.getSurfaceView());  // 初始化
+                    controller.initialize(this, playerView.getSurfaceView());  // 初始化控制器时，要将SurfaceView传递进去
                     playerControllers.put(position, controller); // 缓存到 Map
                 }
                 // 4. 设置控制器、视频数据，开始播放
@@ -285,6 +373,7 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
     protected void onPause() {
         super.onPause();
         pauseAllVideos();
+        stopCarousel();
     }
 
     /**
@@ -296,6 +385,7 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
         super.onResume();
         int currentPosition = viewPager.getCurrentItem();
         playVideoAtPosition(currentPosition);
+        startCarousel();
     }
 
     /**
@@ -306,17 +396,89 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
     protected void onDestroy() {
         super.onDestroy();
 
-        // 释放所有播放器控制器
+        // 1.释放所有播放器控制器
         for (VideoPlayerController controller : playerControllers.values()) {
             if (controller != null) {
-                controller.release();
+                controller.release(); // 释放ExoPlayer 实例
             }
         }
-        playerControllers.clear();
+        playerControllers.clear(); // 清空缓存
 
-        // 释放适配器中的所有视图资源
+        // 2.释放适配器中的所有视图资源
         if (adapter != null) {
-            adapter.releaseAll();
+            adapter.releaseAll(); // 释放所有VideoPalyerView
+        }
+        
+        // 3. 释放轮播定时器
+        stopCarousel();
+    }
+
+    // ==================== 底部相关搜索功能 ====================
+
+    /**
+     * 加载相关搜索数据
+     */
+    private void loadRelatedSearch() {
+        // 从 Mock 数据中获取相关搜索关键词
+        relatedKeywords.clear();
+        String[] keywords = com.example.bd_client_sidejob.data.local.MockVideoData.getRelatedSearchKeywords();
+        for (String keyword : keywords) {
+            relatedKeywords.add(keyword);
+        }
+
+        // 更新UI
+        updateRelatedSearchUI();
+    }
+
+    /**
+     * 更新相关搜索UI（上下轮播，一次显示一个）
+     */
+    private void updateRelatedSearchUI() {
+        // 重置索引
+        currentRelatedIndex = 0;
+        
+        // 显示第一个相关搜索
+        if (!relatedKeywords.isEmpty()) {
+            tvRelatedSearch.setText(relatedKeywords.get(currentRelatedIndex));
+        }
+        
+        // 启动轮播
+        startCarousel();
+    }
+
+    /**
+     * 开始轮播（上下切换推荐词）
+     */
+    private void startCarousel() {
+        if (carouselHandler == null) {
+            carouselHandler = new Handler(Looper.getMainLooper());
+        }
+
+        stopCarousel();
+
+        carouselRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (relatedKeywords != null && relatedKeywords.size() > 1) {
+                    // 切换到下一个推荐词
+                    currentRelatedIndex = (currentRelatedIndex + 1) % relatedKeywords.size();
+                    tvRelatedSearch.setText(relatedKeywords.get(currentRelatedIndex));
+                }
+                // this 指的是 当前匿名内部类 Runnable 的实例
+                carouselHandler.postDelayed(this, CAROUSEL_INTERVAL);
+            }
+        };
+
+        // 首次调用位置，确保轮播从第一个推荐词开始
+        carouselHandler.postDelayed(carouselRunnable, CAROUSEL_INTERVAL);
+    }
+
+    /**
+     * 停止轮播
+     */
+    private void stopCarousel() {
+        if (carouselHandler != null && carouselRunnable != null) {
+            carouselHandler.removeCallbacks(carouselRunnable);
         }
     }
 }
