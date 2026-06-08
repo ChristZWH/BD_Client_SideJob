@@ -133,7 +133,7 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
         // 使用 post 避免在布局计算过程中调用，防止异常
         if (position == videoList.size() - 1 && pageChangeListener != null && !isLoadingMore) {
             isLoadingMore = true;
-            // 将onLoadMore() 回调 延迟到下一个消息循环执行，避免onBindViewHolder() 执行过程中（布局计算阶段）触发回调；防止 RecyclerView 抛出异常；确保布局完全准备好后再触发加载更多
+            // 将onLoadMore() 回调 将 Runnable 添加到 消息队列末尾，延迟到下一个消息循环执行，避免onBindViewHolder() 执行过程中（布局计算阶段）触发回调；防止 RecyclerView 抛出异常；确保布局完全准备好后再触发加载更多
             // RecyclerView 正在执行 onBindViewHolder() ，处于 布局计算阶段 ，此时如果：数据发生变化（ notifyItemRangeInserted() ），那么RecyclerView 尝试重新布局，就会爆出异常
             holder.playerView.post(new Runnable() {
                 @Override
@@ -154,7 +154,7 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
     }
 
     /**
-     * 视图附加到窗口时调用
+     * 视图进入屏幕时的回调
      * onViewAttachedToWindow是RecyclerView 的 生命周期回调 ，系统自动调用
      * @param holder ViewHolder 实例
      */
