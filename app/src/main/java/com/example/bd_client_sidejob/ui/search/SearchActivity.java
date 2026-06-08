@@ -190,21 +190,12 @@ public class SearchActivity extends BaseActivity<SearchContract.Presenter> imple
         tag.setBackgroundResource(R.drawable.bg_tag);
         tag.setPadding(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6));
 
-        // 根据类型设置不同的 LayoutParams
-        if (isHistory) {
-            // 搜索历史使用 LinearLayout.LayoutParams
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT);
-            params.setMargins(0, 0, 0, dpToPx(8)); // 只有底边距
-            tag.setLayoutParams(params);
-        } else {
-            // 推荐使用 FlowLayout.LayoutParams
-            com.example.bd_client_sidejob.widget.FlowLayout.LayoutParams params =
-                    new com.example.bd_client_sidejob.widget.FlowLayout.LayoutParams(
-                            dpToPx(8), dpToPx(8));
-            tag.setLayoutParams(params);
-        }
+        // 设置布局参数（统一使用 LinearLayout.LayoutParams）
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, 0, 0, dpToPx(8)); // 底边距
+        tag.setLayoutParams(params);
 
         return tag;
     }
