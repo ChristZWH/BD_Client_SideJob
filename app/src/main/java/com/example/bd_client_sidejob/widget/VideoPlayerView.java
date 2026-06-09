@@ -82,6 +82,22 @@ public class VideoPlayerView extends ConstraintLayout {
     /** 分享数量显示 */
     private TextView tvShareCount;
 
+    // ==================== 清晰度切换UI组件 ====================
+    /** 清晰度快捷切换按钮（左下角，标题下方） */
+    private LinearLayout llQualityToggle;
+    /** 清晰度图标（HD 徽标） */
+    private ImageView ivQualityIcon;
+    /** 当前清晰度文字标签（如 720p） */
+    private TextView tvQualityLabel;
+    /** 清晰度选择菜单容器 */
+    private LinearLayout llQualityMenu;
+    /** 360p 选项 */
+    private TextView tvQuality360p;
+    /** 720p 选项 */
+    private TextView tvQuality720p;
+    /** 清晰度菜单是否可见 */
+    private boolean isQualityMenuVisible = false;
+
     // ==================== 播放器相关 ====================
     /** 视频播放器控制器（基于 ExoPlayer 封装） */
     private VideoPlayerController playerController;
@@ -93,6 +109,22 @@ public class VideoPlayerView extends ConstraintLayout {
     private boolean isSurfaceReady = false;
     /** 待播放的视频（Surface 未准备好时暂存） */
     private Video pendingVideo = null;
+    /** 视频准备完成监听器 */
+    private OnVideoPreparedListener preparedListener;
+
+    /**
+     * 视频准备完成监听器接口
+     */
+    public interface OnVideoPreparedListener {
+        void onVideoPrepared();
+    }
+
+    /**
+     * 设置视频准备完成监听器
+     */
+    public void setOnVideoPreparedListener(OnVideoPreparedListener listener) {
+        this.preparedListener = listener;
+    }
 
     // ==================== 状态标志 ====================
     /** 当前是否已点赞 */
@@ -183,6 +215,14 @@ public class VideoPlayerView extends ConstraintLayout {
         llShare = findViewById(R.id.llShare);
         tvShareCount = findViewById(R.id.tvShareCount);
         llRightButtons = findViewById(R.id.llRightButtons);
+
+        // 清晰度切换组件
+        llQualityToggle = findViewById(R.id.llQualityToggle);
+        ivQualityIcon = findViewById(R.id.ivQualityIcon);
+        tvQualityLabel = findViewById(R.id.tvQualityLabel);
+        llQualityMenu = findViewById(R.id.llQualityMenu);
+        tvQuality360p = findViewById(R.id.tvQuality360p);
+        tvQuality720p = findViewById(R.id.tvQuality720p);
     }
 
     // ==================== SurfaceView 生命周期 ====================
@@ -289,6 +329,13 @@ public class VideoPlayerView extends ConstraintLayout {
         ivAvatarBtn.setOnClickListener(v -> {
             Toast.makeText(getContext(), "用户主页待接入", Toast.LENGTH_SHORT).show();
         });
+
+        // 清晰度快捷切换按钮点击事件（切换清晰度菜单显示/隐藏）
+        llQualityToggle.setOnClickListener(v -> toggleQualityMenu());
+
+        // 清晰度菜单选项点击事件
+        tvQuality360p.setOnClickListener(v -> switchToQuality(VideoPlayerController.QUALITY_360P));
+        tvQuality720p.setOnClickListener(v -> switchToQuality(VideoPlayerController.QUALITY_720P));
     }
 
     // ==================== 点击事件处理 ====================
@@ -308,8 +355,13 @@ public class VideoPlayerView extends ConstraintLayout {
             return;
         }
 
-        // 如果点击在进度条区域，不处理
+        // 判断点击位置是否在进度条区域
         if (isClickOnSeekBar((int) x, (int) y)) {
+            return;
+        }
+
+        // 如果清晰度菜单可见，不处理播放区域的单击（避免冲突）
+        if (isQualityMenuVisible) {
             return;
         }
 
@@ -574,6 +626,11 @@ public class VideoPlayerView extends ConstraintLayout {
                     tvTotalTime.setText(formatTime(duration)); // 显示总时长
                     seekBar.setMax((int) duration); // 设置进度条最大值
 
+                    // 通知监听器视频准备完成（用于统计起播延迟）
+                    if (preparedListener != null) {
+                        preparedListener.onVideoPrepared();
+                    }
+
                     if (autoPlay) {
                         playerController.play();
                         autoPlay = false;
@@ -610,16 +667,26 @@ public class VideoPlayerView extends ConstraintLayout {
             tvCollectCount.setText(formatCount(collectCount));
             tvShareCount.setText(video.getFormattedShareCount());
 
-            // 使用 Glide 加载作者头像（左下角和右侧按钮）
-            Glide.with(getContext())
-                    .load(video.getAvatar())
-                    .circleCrop()
-                    .into(ivAvatar);
+            // ==================== 头像本地渲染 ====================
+            // 不再使用 Glide 加载网络图片 —— 用纯色圆形本地渲染，0ms 展示，不依赖网络
+            String avatarStr = video.getAvatar();
+            int avatarColor = 0xFF4ECDC4; // 默认颜色
+            try {
+                avatarColor = Integer.parseInt(avatarStr);
+            } catch (NumberFormatException ignored) {
+                // 如果 avatar 不是颜色值（比如是 URL），使用默认颜色
+            }
 
-            Glide.with(getContext())
-                    .load(video.getAvatar())
-                    .circleCrop()
-                    .into(ivAvatarBtn);
+            // 头像用纯色圆形
+            android.graphics.drawable.GradientDrawable avatarDrawable = new android.graphics.drawable.GradientDrawable();
+            avatarDrawable.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            avatarDrawable.setColor(avatarColor);
+            ivAvatar.setImageDrawable(avatarDrawable);
+
+            android.graphics.drawable.GradientDrawable avatarBtnDrawable = new android.graphics.drawable.GradientDrawable();
+            avatarBtnDrawable.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            avatarBtnDrawable.setColor(avatarColor);
+            ivAvatarBtn.setImageDrawable(avatarBtnDrawable);
 
             // 设置图标为默认状态（未点赞、未收藏）
             ivLike.setImageResource(R.drawable.ic_heart_outline);
@@ -636,11 +703,105 @@ public class VideoPlayerView extends ConstraintLayout {
 
     /**
      * 内部方法：设置视频 URL 并开始加载
+     * 如果预加载播放器已经缓冲了同一个 URL，setVideoUrl 会跳过重复 prepare
      */
     private void setVideoInternal(Video video) {
         if (playerController != null) {
             progressBar.setVisibility(View.VISIBLE); // 显示加载进度
+            // 使用单参方法，内部委托给两参方法（preloadMode=false）
+            // 如果 URL 已缓冲好，内部会跳过 prepare，直接触发 onPrepared
             playerController.setVideoUrl(video.getUrl());
+        }
+    }
+
+    // ==================== 清晰度切换 ====================
+
+    /**
+     * 切换清晰度菜单显示/隐藏
+     * 点击左下角清晰度标签时触发
+     */
+    private void toggleQualityMenu() {
+        if (isQualityMenuVisible) {
+            // 隐藏菜单 — 使用简单的消失动画
+            llQualityMenu.setVisibility(View.GONE);
+            llQualityToggle.setBackgroundResource(R.drawable.bg_quality_option_unselected);
+        } else {
+            // 显示菜单 — 更新选中状态后展示
+            updateQualityMenuSelection();
+            llQualityMenu.setVisibility(View.VISIBLE);
+            llQualityToggle.setBackgroundResource(R.drawable.bg_quality_option);
+        }
+        isQualityMenuVisible = !isQualityMenuVisible;
+    }
+
+    /**
+     * 执行清晰度切换
+     * 委托给 VideoPlayerController.switchQuality() 处理核心逻辑
+     *
+     * @param quality 目标清晰度（QUALITY_360P 或 QUALITY_720P）
+     */
+    private void switchToQuality(int quality) {
+        if (playerController == null || currentVideo == null) {
+            return;
+        }
+
+        // 同一清晰度不重复切换
+        if (quality == playerController.getCurrentQuality()) {
+            hideQualityMenu();
+            return;
+        }
+
+        // 获取视频的清晰度 URL
+        String url360p = currentVideo.getQuality360p();
+        String url720p = currentVideo.getQuality720p();
+
+        // 执行切换（控制器内部会保持播放进度）
+        playerController.switchQuality(quality, url360p, url720p);
+
+        // 更新 UI 并隐藏菜单
+        updateQualityLabel(quality);
+        updateQualityMenuSelection();
+        hideQualityMenu();
+    }
+
+    /**
+     * 隐藏清晰度菜单
+     */
+    private void hideQualityMenu() {
+        llQualityMenu.setVisibility(View.GONE);
+        llQualityToggle.setBackgroundResource(R.drawable.bg_quality_option_unselected);
+        isQualityMenuVisible = false;
+    }
+
+    /**
+     * 更新清晰度标签文字
+     * 切换成功后，左下角标签更新为当前清晰度
+     *
+     * @param quality 当前清晰度
+     */
+    private void updateQualityLabel(int quality) {
+        if (quality == VideoPlayerController.QUALITY_720P) {
+            tvQualityLabel.setText("720p");
+        } else if (quality == VideoPlayerController.QUALITY_360P) {
+            tvQualityLabel.setText("360p");
+        }
+    }
+
+    /**
+     * 更新清晰度菜单中选中项的视觉状态
+     * 当前清晰度 → 粉色背景，未选中 → 半透明背景
+     */
+    private void updateQualityMenuSelection() {
+        int currentQuality = playerController != null
+                ? playerController.getCurrentQuality()
+                : VideoPlayerController.QUALITY_DEFAULT;
+
+        if (currentQuality == VideoPlayerController.QUALITY_360P) {
+            tvQuality360p.setBackgroundResource(R.drawable.bg_quality_option);
+            tvQuality720p.setBackgroundResource(R.drawable.bg_quality_option_unselected);
+        } else {
+            tvQuality720p.setBackgroundResource(R.drawable.bg_quality_option);
+            tvQuality360p.setBackgroundResource(R.drawable.bg_quality_option_unselected);
         }
     }
 

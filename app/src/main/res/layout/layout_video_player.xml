@@ -86,6 +86,78 @@
             android:maxLines="2"
             android:textColor="#FFFFFF"
             android:textSize="13sp" />
+
+        <!-- 清晰度切换按钮（位于标题下方） -->
+        <LinearLayout
+            android:id="@+id/llQualityToggle"
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:background="@drawable/bg_quality_option_unselected"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:id="@+id/ivQualityIcon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/ic_quality_hd"
+                android:contentDescription="清晰度图标" />
+
+            <TextView
+                android:id="@+id/tvQualityLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="720p"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 清晰度选择弹窗 -->
+    <LinearLayout
+        android:id="@+id/llQualityMenu"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="@android:color/transparent"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@+id/llSeekBar"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <TextView
+            android:id="@+id/tvQuality360p"
+            android:layout_width="80dp"
+            android:layout_height="32dp"
+            android:gravity="center"
+            android:text="360p"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_quality_option_unselected"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/tvQuality720p"
+            android:layout_width="80dp"
+            android:layout_height="32dp"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:text="720p"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:background="@drawable/bg_quality_option"
+            android:clickable="true"
+            android:focusable="true" />
     </LinearLayout>
 
     <!-- 底部进度条区域 -->

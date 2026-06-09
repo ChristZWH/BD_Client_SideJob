@@ -55,6 +55,17 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
          * 加载更多回调
          */
         void onLoadMore();
+
+        /**
+         * 视频准备完成回调（用于统计起播延迟）
+         */
+        void onVideoPrepared();
+
+        /**
+         * 页面即将切换回调（用于提前预加载）
+         * @param position 即将切换到的页面位置
+         */
+        void onPageWillChange(int position);
     }
 
     /**
@@ -164,6 +175,11 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
         int position = holder.getAdapterPosition();
         // 确保位置有效且不是当前播放位置；视图可见的时，通知外部播放视频
         if (position != RecyclerView.NO_POSITION && position != currentPlayingPosition) {
+            // 提前通知即将切换（用于预加载）
+            if (pageChangeListener != null) {
+                pageChangeListener.onPageWillChange(position);
+            }
+            
             currentPlayingPosition = position;
             // 使用 post 避免在布局计算过程中调用回调
             holder.playerView.post(new Runnable() {
@@ -180,16 +196,17 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
     /**
      * 视图从窗口分离时调用
      * onViewDetachedFromWindow是RecyclerView 的 生命周期回调 ，系统自动调用
+     * 注意：只暂停不释放 —— MainActivity 统一管理 ExoPlayer 生命周期
      * @param holder ViewHolder 实例
      */
     @Override
     public void onViewDetachedFromWindow(@NonNull VideoViewHolder holder) {
         super.onViewDetachedFromWindow(holder);
         int position = holder.getAdapterPosition();
-        // 如果分离的是当前播放的视频，暂停并释放资源
+        // 如果分离的是当前播放的视频，暂停播放
         if (position != RecyclerView.NO_POSITION && position == currentPlayingPosition) {
             holder.playerView.pause();
-            holder.playerView.release();
+            // 不调用 release() —— ExoPlayer 由 MainActivity 的 releaseDistantControllers 统一管理
         }
     }
 
@@ -241,7 +258,7 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
      * VideoViewHolder - 视频列表项的视图持有者
      * 内部类，用于管理视频播放器视图的生命周期和数据绑定操作，只为 VideoFeedAdapter 服务
      */
-    static class VideoViewHolder extends RecyclerView.ViewHolder {
+    class VideoViewHolder extends RecyclerView.ViewHolder {
         /** 视频播放器视图 VideoPlayerView类 */
         VideoPlayerView playerView;
 
@@ -261,6 +278,13 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
          */
         public void bindVideo(Video video, int position) {
             playerView.setVideo(video);
+            
+            // 设置视频准备完成监听器（用于统计起播延迟）
+            playerView.setOnVideoPreparedListener(() -> {
+                if (pageChangeListener != null) {
+                    pageChangeListener.onVideoPrepared();
+                }
+            });
         }
     }
 }

@@ -185,9 +185,10 @@ public class SearchResultActivity extends BaseActivity<SearchResultContract.Pres
 
     @Override
     public void navigateToVideoPlay(Video video) {
-        // 跳转到主页面播放视频
+        // 跳转到主页面播放视频，同时传递搜索关键词让 MainActivity 先展示搜索结果
         Intent intent = new Intent(this, MainActivity.class);
         intent.putExtra(MainActivity.EXTRA_VIDEO_ID, video.getVideoId());
+        intent.putExtra(MainActivity.EXTRA_SEARCH_KEYWORD, currentKeyword);
         startActivity(intent);
     }
 }

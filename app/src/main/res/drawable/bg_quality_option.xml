@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 清晰度选项标签背景 —— 当前选中项使用此背景 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFF4081" />
+    <corners android:radius="12dp" />
+</shape>
