@@ -21,6 +21,10 @@ public abstract class BaseActivity<P> extends AppCompatActivity implements BaseV
 
     protected abstract int getLayoutId();
 
+    protected abstract void initView();
+
+    protected abstract void initData();
+
     protected abstract P createPresenter();
 
     private void initPresenter() {
@@ -29,10 +33,6 @@ public abstract class BaseActivity<P> extends AppCompatActivity implements BaseV
             ((BasePresenter) mPresenter).attachView(this);
         }
     }
-
-    protected abstract void initView();
-
-    protected abstract void initData();
 
     @Override
     public void setPresenter(P presenter) {
