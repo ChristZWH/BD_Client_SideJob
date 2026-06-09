@@ -82,6 +82,87 @@ public class VideoPlayerView extends ConstraintLayout {
     /** 分享数量显示 */
     private TextView tvShareCount;
 
+    // ==================== 全屏模式 ====================
+    /** 当前是否处于横屏全屏模式 */
+    private boolean isFullscreen = false;
+    /** 全屏模式切换监听器 */
+    private OnFullscreenToggleListener fullscreenToggleListener;
+
+    /**
+     * 全屏模式切换监听器接口
+     */
+    public interface OnFullscreenToggleListener {
+        /**
+         * 用户点击全屏/退出全屏按钮时回调
+         * @param enterFullscreen true 表示进入全屏，false 表示退出全屏
+         */
+        void onToggleFullscreen(boolean enterFullscreen);
+    }
+
+    /**
+     * 设置全屏模式切换监听器
+     */
+    public void setOnFullscreenToggleListener(OnFullscreenToggleListener listener) {
+        this.fullscreenToggleListener = listener;
+    }
+
+    /**
+     * 设置全屏模式（由 MainActivity 在横竖屏切换时调用）
+     * 横屏时隐藏右侧按钮和视频信息，让视频铺满屏幕
+     * 同时动态修改 ConstraintLayout 约束：解除对 llRightButtons 的依赖，改到 parent 右侧
+     * @param fullscreen true 进入全屏模式，false 恢复正常模式
+     */
+    public void setFullscreenMode(boolean fullscreen) {
+        this.isFullscreen = fullscreen;
+
+        View llVideoInfo = findViewById(R.id.llVideoInfo);
+        View llSeekBar = findViewById(R.id.llSeekBar);
+
+        if (fullscreen) {
+            // 横屏全屏：隐藏所有 UI 元素，只保留 SurfaceView
+            llRightButtons.setVisibility(View.GONE);
+            llVideoInfo.setVisibility(View.GONE);
+            llSeekBar.setVisibility(View.GONE);
+            llQualityMenu.setVisibility(View.GONE);
+            llQualityToggle.setVisibility(View.GONE);
+
+            // 🔑 动态修改约束：横屏时进度条和信息区域不再依赖右侧按钮，直接约束到 parent
+            updateConstraint(llSeekBar, R.id.llRightButtons, ConstraintLayout.LayoutParams.PARENT_ID);
+        } else {
+            // 竖屏恢复：显示所有 UI 元素
+            llRightButtons.setVisibility(View.VISIBLE);
+            llVideoInfo.setVisibility(View.VISIBLE);
+            llSeekBar.setVisibility(View.VISIBLE);
+            llQualityToggle.setVisibility(View.VISIBLE);
+            // 不恢复 llQualityMenu — 它可能之前就是隐藏的
+
+            // 🔑 恢复约束：进度条和信息区域的右边重新依赖右侧按钮
+            updateConstraint(llSeekBar, ConstraintLayout.LayoutParams.PARENT_ID, R.id.llRightButtons);
+        }
+    }
+
+    /**
+     * 修改 ConstraintLayout 中指定 View 的 endToStart 约束目标
+     * @param view 要修改约束的 View
+     * @param fromId 旧的约束目标 ID
+     * @param toId 新的约束目标 ID
+     */
+    private void updateConstraint(View view, int fromId, int toId) {
+        if (view == null) return;
+        ConstraintLayout.LayoutParams lp = (ConstraintLayout.LayoutParams) view.getLayoutParams();
+        if (lp != null) {
+            lp.endToStart = toId;
+            view.setLayoutParams(lp);
+        }
+    }
+
+    /**
+     * 获取当前是否全屏模式
+     */
+    public boolean isFullscreen() {
+        return isFullscreen;
+    }
+    /** 清晰度快捷切换按钮（左下角，标题下方） */
     // ==================== 清晰度切换UI组件 ====================
     /** 清晰度快捷切换按钮（左下角，标题下方） */
     private LinearLayout llQualityToggle;

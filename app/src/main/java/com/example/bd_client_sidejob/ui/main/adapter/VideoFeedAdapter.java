@@ -8,7 +8,9 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.bd_client_sidejob.data.model.ImageCard;
 import com.example.bd_client_sidejob.data.model.Video;
+import com.example.bd_client_sidejob.widget.ImageCardView;
 import com.example.bd_client_sidejob.widget.VideoPlayerView;
 
 import java.util.ArrayList;
@@ -17,21 +19,25 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * VideoFeedAdapter - 视频流列表适配器
+ * VideoFeedAdapter - 视频流列表适配器（支持视频 + 图片卡片混排）
  * ViewPager2（底层是 RecyclerView）通过 Adapter 管理数据和创建视图
  * 职责：
  * 1. 持有视频列表数据
- * 2. 创建和复用 VideoPlayerView
+ * 2. 创建和复用 VideoPlayerView / ImageCardView
  * 3. 将数据绑定到视图
  * 4. 处理加载更多逻辑
  * 5. 管理播放器视图的生命周期
  */
-public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.VideoViewHolder> {
+public class VideoFeedAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+
+    // ==================== 视图类型常量 ====================
+    private static final int TYPE_VIDEO = 0;
+    private static final int TYPE_IMAGE = 1;
 
     /** 上下文对象 */
     private Context context;
-    /** 视频列表数据 */
-    private List<Video> videoList;
+    /** 混合数据列表（Video 或 ImageCard） */
+    private List<Object> feedItems;
     /** 页面变更监听器 - 用于回调页面切换和加载更多事件 */
     private OnVideoPageChangeListener pageChangeListener;
     /** 播放器视图映射 - 缓存已创建的 VideoPlayerView */
@@ -50,7 +56,7 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
          * @param position 新页面位置
          */
         void onPageChanged(int position);
-        
+
         /**
          * 加载更多回调
          */
@@ -66,6 +72,12 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
          * @param position 即将切换到的页面位置
          */
         void onPageWillChange(int position);
+
+        /**
+         * 图片卡片被单击回调
+         * @param card 图片卡片数据
+         */
+        void onImageCardClicked(ImageCard card);
     }
 
     /**
@@ -74,7 +86,7 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
      */
     public VideoFeedAdapter(Context context) {
         this.context = context;
-        this.videoList = new ArrayList<>();
+        this.feedItems = new ArrayList<>();
     }
 
     /**
@@ -82,8 +94,17 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
      * @param videos 新的视频列表
      */
     public void setVideoList(List<Video> videos) {
-        this.videoList = videos;
+        this.feedItems = new ArrayList<>(videos);
         notifyDataSetChanged(); // 通知数据变更
+    }
+
+    /**
+     * 设置混合数据列表（视频 + 图片卡片）
+     * @param items 混合数据列表（Video 或 ImageCard）
+     */
+    public void setFeedItems(List<Object> items) {
+        this.feedItems = items;
+        notifyDataSetChanged();
     }
 
     /**
@@ -91,11 +112,21 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
      * @param videos 要添加的视频列表
      */
     public void addVideos(List<Video> videos) {
-        int startPosition = videoList.size();
-        videoList.addAll(videos);
-        // notifyItemRangeInserted是 通知 RecyclerView 数据发生了变化 ，需要更新视图；指定变化范围 ，避免全部重绘；触发视图更新 ，RecyclerView 会自动调用 onBindViewHolder() 更新新插入的视图
-        notifyItemRangeInserted(startPosition, videos.size()); // 通知部分数据插入
+        int startPosition = feedItems.size();
+        feedItems.addAll(videos);
+        notifyItemRangeInserted(startPosition, videos.size());
         isLoadingMore = false; // 重置加载状态
+    }
+
+    /**
+     * 添加混合数据列表（追加）
+     * @param items 混合数据列表
+     */
+    public void addFeedItems(List<Object> items) {
+        int startPosition = feedItems.size();
+        feedItems.addAll(items);
+        notifyItemRangeInserted(startPosition, items.size());
+        isLoadingMore = false;
     }
 
     /**
@@ -106,112 +137,116 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
         this.pageChangeListener = listener;
     }
 
-    /**
-     * 创建VideoPlayerView的 ViewHolder，RecyclerView 自动调用
-     * @param parent 父容器
-     * @param viewType 视图类型
-     * @return VideoViewHolder 实例
-     */
+    // ==================== RecyclerView Adapter 核心方法 ====================
+
+    @Override
+    public int getItemViewType(int position) {
+        Object item = feedItems.get(position);
+        if (item instanceof ImageCard) {
+            return TYPE_IMAGE;
+        }
+        return TYPE_VIDEO;
+    }
+
     @NonNull
     @Override
-    public VideoViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        VideoPlayerView playerView = new VideoPlayerView(context);  // 创建视频播放器视图
-        playerView.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-        return new VideoViewHolder(playerView); // 包装成 ViewHolder
-        // RecyclerView 的复用机制 ：
-        // 1. RecyclerView 不会为每个 item 都创建新视图
-        // 2. 而是通过 onCreateViewHolder() 创建有限数量的视图
-        // 3. 滑动时 复用 这些视图，只调用 onBindViewHolder() 更新数据
-    }
-
-    /**
-     * 绑定数据到视图 ViewHolder，RecyclerView 自动调用
-     * @param holder ViewHolder 实例
-     * @param position 数据位置
-     */
-    @Override
-    public void onBindViewHolder(@NonNull VideoViewHolder holder, int position) {
-        Video video = videoList.get(position);
-        holder.bindVideo(video, position);
-
-        // 缓存播放器视图
-        playerViewMap.put(position, holder.playerView);
-
-        // 检查是否需要加载更多（滑动到最后一条时触发）
-        // 使用 post 避免在布局计算过程中调用，防止异常
-        if (position == videoList.size() - 1 && pageChangeListener != null && !isLoadingMore) {
-            isLoadingMore = true;
-            // 将onLoadMore() 回调 将 Runnable 添加到 消息队列末尾，延迟到下一个消息循环执行，避免onBindViewHolder() 执行过程中（布局计算阶段）触发回调；防止 RecyclerView 抛出异常；确保布局完全准备好后再触发加载更多
-            // RecyclerView 正在执行 onBindViewHolder() ，处于 布局计算阶段 ，此时如果：数据发生变化（ notifyItemRangeInserted() ），那么RecyclerView 尝试重新布局，就会爆出异常
-            holder.playerView.post(new Runnable() {
-                @Override
-                public void run() {
-                    pageChangeListener.onLoadMore();
-                }
-            });
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        LayoutInflater inflater = LayoutInflater.from(context);
+        if (viewType == TYPE_IMAGE) {
+            ImageCardView cardView = new ImageCardView(context);
+            cardView.setLayoutParams(new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+            return new ImageCardViewHolder(cardView);
+        } else {
+            VideoPlayerView playerView = new VideoPlayerView(context);
+            playerView.setLayoutParams(new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+            ));
+            return new VideoViewHolder(playerView);
         }
     }
 
-    /**
-     * 获取列表项数量
-     * @return 视频列表大小
-     */
+    @Override
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        Object item = feedItems.get(position);
+
+        if (holder instanceof ImageCardViewHolder && item instanceof ImageCard) {
+            ImageCard card = (ImageCard) item;
+            ((ImageCardViewHolder) holder).bindCard(card, position);
+        } else if (holder instanceof VideoViewHolder && item instanceof Video) {
+            Video video = (Video) item;
+            VideoViewHolder vh = (VideoViewHolder) holder;
+            vh.bindVideo(video, position);
+            // 缓存播放器视图
+            playerViewMap.put(position, vh.playerView);
+        }
+
+        // 检查是否需要加载更多
+        if (position == feedItems.size() - 1 && pageChangeListener != null && !isLoadingMore) {
+            isLoadingMore = true;
+            View view = holder.itemView;
+            if (view != null) {
+                view.post(() -> pageChangeListener.onLoadMore());
+            }
+        }
+    }
+
     @Override
     public int getItemCount() {
-        return videoList.size();
+        return feedItems.size();
     }
 
-    /**
-     * 视图进入屏幕时的回调
-     * onViewAttachedToWindow是RecyclerView 的 生命周期回调 ，系统自动调用
-     * @param holder ViewHolder 实例
-     */
+    // ==================== 视图生命周期回调 ====================
+
     @Override
-    public void onViewAttachedToWindow(@NonNull VideoViewHolder holder) {
+    public void onViewAttachedToWindow(@NonNull RecyclerView.ViewHolder holder) {
         super.onViewAttachedToWindow(holder);
         int position = holder.getAdapterPosition();
-        // 确保位置有效且不是当前播放位置；视图可见的时，通知外部播放视频
-        if (position != RecyclerView.NO_POSITION && position != currentPlayingPosition) {
-            // 提前通知即将切换（用于预加载）
-            if (pageChangeListener != null) {
-                pageChangeListener.onPageWillChange(position);
-            }
-            
-            currentPlayingPosition = position;
-            // 使用 post 避免在布局计算过程中调用回调
-            holder.playerView.post(new Runnable() {
-                @Override
-                public void run() {
-                    if (pageChangeListener != null) {
-                        pageChangeListener.onPageChanged(position);
-                    }
-                }
-            });
+        if (position == RecyclerView.NO_POSITION || position == currentPlayingPosition) {
+            return;
         }
+
+        // 图片卡片不需要播放逻辑
+        if (holder instanceof ImageCardViewHolder) {
+            return;
+        }
+
+        // 视频项：提前通知即将切换（用于预加载）
+        if (pageChangeListener != null) {
+            pageChangeListener.onPageWillChange(position);
+        }
+
+        currentPlayingPosition = position;
+        holder.itemView.post(() -> {
+            if (pageChangeListener != null) {
+                pageChangeListener.onPageChanged(position);
+            }
+        });
     }
 
-    /**
-     * 视图从窗口分离时调用
-     * onViewDetachedFromWindow是RecyclerView 的 生命周期回调 ，系统自动调用
-     * 注意：只暂停不释放 —— MainActivity 统一管理 ExoPlayer 生命周期
-     * @param holder ViewHolder 实例
-     */
     @Override
-    public void onViewDetachedFromWindow(@NonNull VideoViewHolder holder) {
+    public void onViewDetachedFromWindow(@NonNull RecyclerView.ViewHolder holder) {
         super.onViewDetachedFromWindow(holder);
         int position = holder.getAdapterPosition();
-        // 如果分离的是当前播放的视频，暂停播放
+
+        if (holder instanceof ImageCardViewHolder) {
+            // 图片卡片：简单暂停资源
+            ((ImageCardViewHolder) holder).pause();
+            return;
+        }
+
         if (position != RecyclerView.NO_POSITION && position == currentPlayingPosition) {
-            holder.playerView.pause();
-            // 不调用 release() —— ExoPlayer 由 MainActivity 的 releaseDistantControllers 统一管理
+            ((VideoViewHolder) holder).playerView.pause();
         }
     }
 
+    // ==================== 数据查询方法 ====================
+
     /**
-     * 获取指定位置的播放器视图
+     * 获取指定位置的播放器视图（仅对视频项有效）
      * @param position 视频位置
      * @return VideoPlayerView 实例（不存在返回null）
      */
@@ -243,48 +278,95 @@ public class VideoFeedAdapter extends RecyclerView.Adapter<VideoFeedAdapter.Vide
     }
 
     /**
-     * 获取指定位置的视频数据
+     * 获取指定位置的视频数据（仅对视频项有效）
      * @param position 视频位置
-     * @return Video 实例（越界返回null）
+     * @return Video 实例（越界或非视频返回null）
      */
     public Video getVideoAtPosition(int position) {
-        if (position >= 0 && position < videoList.size()) {
-            return videoList.get(position);
+        if (position >= 0 && position < feedItems.size()) {
+            Object item = feedItems.get(position);
+            if (item instanceof Video) {
+                return (Video) item;
+            }
         }
         return null;
     }
 
     /**
-     * VideoViewHolder - 视频列表项的视图持有者
-     * 内部类，用于管理视频播放器视图的生命周期和数据绑定操作，只为 VideoFeedAdapter 服务
+     * 判断指定位置是否是视频
+     */
+    public boolean isVideoAtPosition(int position) {
+        if (position >= 0 && position < feedItems.size()) {
+            return feedItems.get(position) instanceof Video;
+        }
+        return false;
+    }
+
+    /**
+     * 判断指定位置是否是图片卡片
+     */
+    public boolean isImageCardAtPosition(int position) {
+        if (position >= 0 && position < feedItems.size()) {
+            return feedItems.get(position) instanceof ImageCard;
+        }
+        return false;
+    }
+
+    /**
+     * 获取混合数据列表
+     */
+    public List<Object> getFeedItems() {
+        return feedItems;
+    }
+
+    // ==================== ViewHolder 内部类 ====================
+
+    /**
+     * 视频项 ViewHolder
      */
     class VideoViewHolder extends RecyclerView.ViewHolder {
-        /** 视频播放器视图 VideoPlayerView类 */
         VideoPlayerView playerView;
 
-        /**
-         * 构造函数
-         * @param itemView 视图实例
-         */
         public VideoViewHolder(@NonNull VideoPlayerView itemView) {
             super(itemView);
             this.playerView = itemView;
         }
 
-        /**
-         * 绑定视频数据到视图 —— 设置视频数据
-         * @param video 视频数据
-         * @param position 位置
-         */
         public void bindVideo(Video video, int position) {
             playerView.setVideo(video);
-            
-            // 设置视频准备完成监听器（用于统计起播延迟）
+
             playerView.setOnVideoPreparedListener(() -> {
                 if (pageChangeListener != null) {
                     pageChangeListener.onVideoPrepared();
                 }
             });
+        }
+    }
+
+    /**
+     * 图片卡片 ViewHolder
+     */
+    class ImageCardViewHolder extends RecyclerView.ViewHolder {
+        ImageCardView cardView;
+
+        public ImageCardViewHolder(@NonNull ImageCardView itemView) {
+            super(itemView);
+            this.cardView = itemView;
+        }
+
+        public void bindCard(ImageCard card, int position) {
+            cardView.setImageCard(card);
+
+            cardView.setOnImageCardClickListener(c -> {
+                if (pageChangeListener != null) {
+                    pageChangeListener.onImageCardClicked(c);
+                }
+            });
+        }
+
+        public void pause() {
+            // 图片卡片不需要暂停逻辑（没有播放器）
+            // 预留：可在此处暂停 GIF 等动画
         }
     }
 }

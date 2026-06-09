@@ -4,6 +4,7 @@ import android.content.Context;
 import android.util.Log;
 
 import com.example.bd_client_sidejob.base.BasePresenter;
+import com.example.bd_client_sidejob.data.model.ImageCard;
 import com.example.bd_client_sidejob.data.model.Video;
 import com.example.bd_client_sidejob.data.model.VideoList;
 import com.example.bd_client_sidejob.data.repository.VideoRepository;
@@ -26,10 +27,16 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
     private final VideoRepository videoRepository;
     /** 视频列表数据 - 缓存已加载的视频 */
     private List<Video> videoList;
+    /** 图片卡片列表 */
+    private List<ImageCard> imageCardList;
+    /** 混合数据列表（Video + ImageCard 混排） */
+    private List<Object> feedItems;
     /** 当前页码 - 用于分页加载 */
     private int currentPage = 0;
     /** 每页大小 - 每页加载的视频数量 */
     private final int pageSize = 5;
+    /** 每次插入图片卡片的视频间隔（每 N 个视频插入 1 张图片） */
+    private final int imageCardInterval = 3;
     /** 是否有更多数据 - 用于判断是否可以继续加载 */
     private boolean hasMore = true;
     /** 是否正在加载 - 防止重复请求 */
@@ -50,6 +57,8 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
     public MainPresenter() {
         this.videoRepository = VideoRepositoryImpl.getInstance();
         this.videoList = new ArrayList<>();
+        this.imageCardList = new ArrayList<>();
+        this.feedItems = new ArrayList<>();
     }
 
     /**
@@ -77,7 +86,7 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
 
     /**
      * 加载视频列表（搜索模式）
-     * 先展示搜索匹配的视频，播完搜索结果后再加载全量视频
+     * 先展示搜索匹配的视频，播完搜索结果后再加载全量视频，每 3 个视频插入 1 张图片卡片
      * @param targetVideoId 目标视频ID（搜索结果的第一个视频先播放）
      * @param keyword 搜索关键词
      */
@@ -102,10 +111,16 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
             }
         }
 
+        // 加载图片卡片数据
+        imageCardList = com.example.bd_client_sidejob.data.local.MockVideoData.getImageCards();
+
+        // 混合为 feedItems（视频 + 图片卡片混排）
+        mixFeedItems();
+
         isLoading = false;
 
         if (isViewAttached()) {
-            getView().showVideoList(videoList);
+            getView().showFeedItems(feedItems);
         }
     }
 
@@ -122,12 +137,12 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
         }
 
         isLoading = true;
-        
+
         // 第一页时显示加载进度
         if (page == 0 && isViewAttached()) {
             getView().showLoading();
         }
-        
+
         // 调用 Repository 获取数据（异步回调）
         videoRepository.getVideoList(page, pageSize, new VideoRepository.VideoListCallback() {
             @Override
@@ -139,18 +154,23 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
                 // 第一页需要清空旧数据（刷新或首次加载）
                 if (page == 0) {
                     videoList.clear();
+                    // 加载图片卡片（首次加载时）
+                    imageCardList = com.example.bd_client_sidejob.data.local.MockVideoData.getImageCards();
                 }
                 // 追加新数据到列表
                 videoList.addAll(result.getVideos());
+
+                // 混合为 feedItems（视频 + 图片卡片混排）
+                mixFeedItems();
 
                 // 通知 View 更新 UI
                 if (isViewAttached()) {
                     getView().hideLoading();
 
                     if (page == 0) {
-                        getView().showVideoList(result.getVideos());
+                        getView().showFeedItems(feedItems);
                     } else {
-                        getView().onMoreVideosLoaded(result.getVideos());
+                        getView().onMoreFeedItemsLoaded(feedItems);
                     }
 
                     getView().hasMoreVideos(hasMore);
@@ -183,22 +203,45 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
     }
 
     /**
+     * 将视频列表和图片卡片混合为统一的 feedItems
+     * 每 imageCardInterval 个视频插入 1 张图片卡片
+     */
+    private void mixFeedItems() {
+        feedItems.clear();
+        int cardIndex = 0;
+
+        for (int i = 0; i < videoList.size(); i++) {
+            feedItems.add(videoList.get(i));
+            // 每 3 个视频插入 1 张图片卡片
+            if ((i + 1) % imageCardInterval == 0 && imageCardList != null && cardIndex < imageCardList.size()) {
+                feedItems.add(imageCardList.get(cardIndex));
+                cardIndex++;
+            }
+        }
+    }
+
+    /**
      * 播放指定位置的视频
-     * @param position 视频位置
+     * @param position 视频位置（在 feedItems 中的位置）
      */
     @Override
     public void playVideo(int position) {
-        if (position >= 0 && position < videoList.size()) {
+        if (position >= 0 && position < feedItems.size()) {
+            Object item = feedItems.get(position);
+            if (!(item instanceof Video)) {
+                return; // 图片卡片不需要播放
+            }
+
+            Video video = (Video) item;
             // 记录播放开始时间（用于统计起播延迟）
             playStartTime = System.currentTimeMillis();
-            
+
             // 更新当前播放位置
             currentPlayingPosition = position;
-            Video video = videoList.get(position);
-            
+
             // 预加载当前视频前后的视频（在播放前就开始预加载）
             schedulePreloading(position);
-            
+
             // 通知 View 播放视频
             if (isViewAttached()) {
                 getView().onVideoLoaded(video, position);
@@ -228,7 +271,7 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
 
     /**
      * 调度预加载
-     * 预加载当前视频前后的视频
+     * 预加载当前视频前后的视频（跳过图片卡片项）
      */
     private void schedulePreloading(int currentPosition) {
         if (playerManager == null || !playerManager.getConfig().enabled) {
@@ -236,28 +279,39 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
         }
 
         PreloadConfig config = playerManager.getConfig();
-        
-        // 预加载前面的视频（向后预加载）
-        for (int i = 1; i <= config.backwardCount; i++) {
+
+        // 预加载前面的视频（向后预加载），跳过图片卡片
+        int skipped = 0;
+        for (int i = 1; i <= config.backwardCount + skipped; i++) {
             int pos = currentPosition - i;
-            if (pos >= 0 && pos < videoList.size()) {
-                Video video = videoList.get(pos);
-                if (!playerManager.isCached(video.getVideoId()) && !playerManager.isPreloading(video.getVideoId())) {
-                    playerManager.preloadVideo(video.getVideoId(), video.getUrl());
-                    Log.d(TAG, "Scheduled preload for previous video: " + pos + " - " + video.getTitle());
-                }
+            if (pos < 0) break;
+            if (pos >= feedItems.size()) break;
+            Object item = feedItems.get(pos);
+            if (!(item instanceof Video)) {
+                skipped++;
+                continue;
+            }
+            Video video = (Video) item;
+            if (!playerManager.isCached(video.getVideoId()) && !playerManager.isPreloading(video.getVideoId())) {
+                playerManager.preloadVideo(video.getVideoId(), video.getUrl());
+                Log.d(TAG, "Scheduled preload for previous video: " + pos + " - " + video.getTitle());
             }
         }
 
-        // 预加载后面的视频（向前预加载）
-        for (int i = 1; i <= config.forwardCount; i++) {
+        // 预加载后面的视频（向前预加载），跳过图片卡片
+        skipped = 0;
+        for (int i = 1; i <= config.forwardCount + skipped; i++) {
             int pos = currentPosition + i;
-            if (pos >= 0 && pos < videoList.size()) {
-                Video video = videoList.get(pos);
-                if (!playerManager.isCached(video.getVideoId()) && !playerManager.isPreloading(video.getVideoId())) {
-                    playerManager.preloadVideo(video.getVideoId(), video.getUrl());
-                    Log.d(TAG, "Scheduled preload for next video: " + pos + " - " + video.getTitle());
-                }
+            if (pos >= feedItems.size()) break;
+            Object item = feedItems.get(pos);
+            if (!(item instanceof Video)) {
+                skipped++;
+                continue;
+            }
+            Video video = (Video) item;
+            if (!playerManager.isCached(video.getVideoId()) && !playerManager.isPreloading(video.getVideoId())) {
+                playerManager.preloadVideo(video.getVideoId(), video.getUrl());
+                Log.d(TAG, "Scheduled preload for next video: " + pos + " - " + video.getTitle());
             }
         }
     }
@@ -317,7 +371,12 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
      */
     @Override
     public void onVideoPageChanged(int position) {
-        if (position >= 0 && position < videoList.size()) {
+        if (position >= 0 && position < feedItems.size()) {
+            // 图片卡片不需要播放控制
+            Object item = feedItems.get(position);
+            if (!(item instanceof Video)) {
+                return;
+            }
             // 如果有其他视频在播放，先暂停
             if (currentPlayingPosition != -1 && currentPlayingPosition != position) {
                 pauseVideo(currentPlayingPosition);
@@ -330,32 +389,37 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
     /**
      * 预加载即将播放的视频（用户滑动前调用）
      * 在用户滑动到新视频之前就开始预加载，提升响应速度
-     * @param position 即将播放的视频位置
+     * @param position 即将播放的视频位置（在 feedItems 中的位置）
      */
     public void preloadUpcomingVideo(int position) {
         Log.d(TAG, "preloadUpcomingVideo called for position: " + position);
-        
+
         if (playerManager == null) {
             Log.d(TAG, "playerManager is null, skipping preload");
             return;
         }
-        
+
         if (!playerManager.getConfig().enabled) {
             Log.d(TAG, "preload is disabled, skipping");
             return;
         }
 
-        if (videoList == null || videoList.isEmpty()) {
-            Log.d(TAG, "videoList is empty, skipping preload");
+        if (feedItems == null || feedItems.isEmpty()) {
+            Log.d(TAG, "feedItems is empty, skipping preload");
             return;
         }
 
-        // 预加载即将播放的视频本身
+        // 预加载即将播放的视频本身（跳过图片卡片）
         int targetPos = position;
-        Log.d(TAG, "targetPos: " + targetPos + ", videoList.size(): " + videoList.size());
-        
-        if (targetPos >= 0 && targetPos < videoList.size()) {
-            Video video = videoList.get(targetPos);
+        Log.d(TAG, "targetPos: " + targetPos + ", feedItems.size(): " + feedItems.size());
+
+        if (targetPos >= 0 && targetPos < feedItems.size()) {
+            Object item = feedItems.get(targetPos);
+            if (!(item instanceof Video)) {
+                Log.d(TAG, "Target position is not a video, skipping preload");
+                return;
+            }
+            Video video = (Video) item;
             if (!playerManager.isCached(video.getVideoId()) && !playerManager.isPreloading(video.getVideoId())) {
                 playerManager.preloadVideo(video.getVideoId(), video.getUrl());
                 Log.d(TAG, "Preloading upcoming video: " + targetPos + " - " + video.getTitle());
@@ -379,6 +443,14 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
     }
 
     /**
+     * 获取混合数据列表
+     * @return 混合数据列表（Video + ImageCard）
+     */
+    public List<Object> getFeedItems() {
+        return feedItems;
+    }
+
+    /**
      * 获取当前播放位置
      * @return 当前播放位置（-1表示没有正在播放的视频）
      */
@@ -387,13 +459,16 @@ public class MainPresenter extends BasePresenter<MainContract.View> implements M
     }
 
     /**
-     * 获取指定位置的视频
-     * @param position 视频位置
-     * @return 视频对象（越界返回null）
+     * 获取指定位置的视频（仅对视频项有效）
+     * @param position 在 feedItems 中的位置
+     * @return 视频对象（越界或非视频项返回null）
      */
     public Video getVideoAtPosition(int position) {
-        if (position >= 0 && position < videoList.size()) {
-            return videoList.get(position);
+        if (position >= 0 && position < feedItems.size()) {
+            Object item = feedItems.get(position);
+            if (item instanceof Video) {
+                return (Video) item;
+            }
         }
         return null;
     }

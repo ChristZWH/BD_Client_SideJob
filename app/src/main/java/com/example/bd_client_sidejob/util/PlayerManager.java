@@ -104,11 +104,12 @@ public class PlayerManager {
         // LRU缓存：最近最少使用策略，自动淘汰最久未使用的播放器
         // maxCachedPlayers 必须是最终值，不能用构造时尚未设置的 config 值
         this.playerPool = new LinkedHashMap<String, VideoPlayerController>(MAX_CACHED_PLAYERS_LIMIT, 0.75f, true) {
+            @SuppressWarnings("unchecked")
             @Override
-            protected boolean removeEldestEntry(Map.Entry<String, VideoPlayerController> eldest) {
+            protected boolean removeEldestEntry(Map.Entry eldest) {
                 if (size() > MAX_CACHED_PLAYERS_LIMIT) {
-                    VideoPlayerController player = eldest.getValue();
-                    String videoId = eldest.getKey();
+                    VideoPlayerController player = (VideoPlayerController) eldest.getValue();
+                    String videoId = (String) eldest.getKey();
                     if (player != null) {
                         // ExoPlayer.release() 必须在主线程调用
                         if (Looper.myLooper() == Looper.getMainLooper()) {

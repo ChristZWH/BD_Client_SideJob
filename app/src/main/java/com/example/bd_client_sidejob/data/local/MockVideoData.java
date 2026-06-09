@@ -382,19 +382,26 @@ public class MockVideoData {
      */
     public static List<ImageCard> getImageCards() {
         List<ImageCard> cards = new ArrayList<>();
-        String[] urls = {
-                "https://picsum.photos/seed/img1/300/200",
-                "https://picsum.photos/seed/img2/300/200",
-                "https://picsum.photos/seed/img3/300/200",
-                "https://picsum.photos/seed/img4/300/200",
-                "https://picsum.photos/seed/img5/300/200",
-                "https://picsum.photos/seed/img6/300/200"
+
+        // 每个图片卡片包含 3 张图，支持左右滑动浏览
+        String[][] imageSets = {
+                {"https://picsum.photos/seed/card1a/300/400", "https://picsum.photos/seed/card1b/300/400", "https://picsum.photos/seed/card1c/300/400"},
+                {"https://picsum.photos/seed/card2a/300/400", "https://picsum.photos/seed/card2b/300/400", "https://picsum.photos/seed/card2c/300/400"},
+                {"https://picsum.photos/seed/card3a/300/400", "https://picsum.photos/seed/card3b/300/400", "https://picsum.photos/seed/card3c/300/400"},
+                {"https://picsum.photos/seed/card4a/300/400", "https://picsum.photos/seed/card4b/300/400", "https://picsum.photos/seed/card4c/300/400"},
+                {"https://picsum.photos/seed/card5a/300/400", "https://picsum.photos/seed/card5b/300/400", "https://picsum.photos/seed/card5c/300/400"},
+                {"https://picsum.photos/seed/card6a/300/400", "https://picsum.photos/seed/card6b/300/400", "https://picsum.photos/seed/card6c/300/400"},
         };
 
-        for (int i = 0; i < urls.length; i++) {
+        for (int i = 0; i < imageSets.length; i++) {
             ImageCard card = new ImageCard();
-            card.setImageUrl(urls[i]);
-            card.setTitle("推荐内容 " + (i + 1));
+            List<String> urls = new ArrayList<>();
+            for (String url : imageSets[i]) {
+                urls.add(url);
+            }
+            card.setImageUrls(urls);
+            card.setImageUrl(imageSets[i][0]); // 兼容旧代码
+            card.setTitle("推荐图集 " + (i + 1) + " (" + imageSets[i].length + "图)");
             cards.add(card);
         }
         return cards;
