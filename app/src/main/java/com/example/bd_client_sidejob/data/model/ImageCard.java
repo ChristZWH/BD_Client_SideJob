@@ -1,11 +1,14 @@
 package com.example.bd_client_sidejob.data.model;
 
+import com.google.gson.annotations.SerializedName;
+
 import java.util.ArrayList;
 import java.util.List;
 
 // 图片卡片实体（支持多图左右滑动）
 public class ImageCard {
-    private String cardId;
+    @SerializedName("id") // 序列化与反序列化时使用 id 字段名（id <————> cardId），实现名称映射
+    private long cardId;
     /** @deprecated 用 imageUrls 替代，保留兼容旧代码 */
     private String imageUrl;
     /** 多图列表（每张图片可左右滑动查看） */
@@ -15,18 +18,18 @@ public class ImageCard {
 
     public ImageCard() {}
 
-    public ImageCard(String cardId, String imageUrl, String title, int position) {
+    public ImageCard(long cardId, String imageUrl, String title, int position) {
         this.cardId = cardId;
         this.imageUrl = imageUrl;
         this.title = title;
         this.position = position;
     }
 
-    public String getCardId() {
+    public long getCardId() {
         return cardId;
     }
 
-    public void setCardId(String cardId) {
+    public void setCardId(long cardId) {
         this.cardId = cardId;
     }
 

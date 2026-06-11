@@ -42,10 +42,6 @@ public class SearchPresenter extends BasePresenter<SearchContract.View> implemen
 
         // 从仓库获取搜索历史列表
         List<SearchHistory> historyList = getRepository().getSearchHistory();
-        
-        // 从仓库获取推荐关键词
-        String[] keywordsArray = getRepository().getRecommendKeywords();
-        List<String> keywords = Arrays.asList(keywordsArray);
 
         // 更新 UI
         getView().hideLoading();
@@ -76,7 +72,7 @@ public class SearchPresenter extends BasePresenter<SearchContract.View> implemen
     @Override
     public void addSearchKeyword(String keyword) {
         getRepository().addSearchKeyword(keyword);
-        
+
         // 显示提示信息
         if (isViewAttached()) {
             getView().showToast("搜索历史已保存");
@@ -91,7 +87,7 @@ public class SearchPresenter extends BasePresenter<SearchContract.View> implemen
     public void removeSearchHistory(String keyword) {
         // 删除指定关键词
         getRepository().removeSearchKeyword(keyword);
-        
+
         // 重新加载历史列表
         loadSearchHistoryAndRecommend();
     }
@@ -103,7 +99,7 @@ public class SearchPresenter extends BasePresenter<SearchContract.View> implemen
     public void clearAllSearchHistory() {
         // 清空历史记录
         getRepository().clearSearchHistory();
-        
+
         // 显示提示并重新加载
         if (isViewAttached()) {
             getView().showToast("搜索历史已清空");

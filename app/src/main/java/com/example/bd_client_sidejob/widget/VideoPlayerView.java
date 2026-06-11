@@ -785,6 +785,7 @@ public class VideoPlayerView extends ConstraintLayout {
     /**
      * 内部方法：设置视频 URL 并开始加载
      * 如果预加载播放器已经缓冲了同一个 URL，setVideoUrl 会跳过重复 prepare
+     * VideoPlayerView 自己只管"拿到一个 controller → 调用 setVideoUrl → 等待 onPrepared → 播放"，它不需要知道这个 controller 是预加载过的还是刚创建的
      */
     private void setVideoInternal(Video video) {
         if (playerController != null) {

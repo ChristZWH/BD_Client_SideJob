@@ -1,11 +1,15 @@
 package com.example.bd_client_sidejob.data.model;
 
-// 视频实体
+import com.google.gson.annotations.SerializedName;
+
+// 视频实体（对接 Go 视频服务）
 public class Video {
-    private String videoId;
+    @SerializedName("id") // （JSON中的 id <————> Java类中 videoId），实现名称映射
+    private long videoId;
     private String url;
     private String title;
     private String author;
+    @SerializedName("avatarColor") // （JSON中的 avatarColor <————> Java类中 avatarColor），实现名称映射
     private String avatar;
     private int likeCount;
     private int commentCount;
@@ -14,10 +18,14 @@ public class Video {
     private String coverUrl;
     private String quality360p;
     private String quality720p;
+    private String category; // 视频分类
+    private String tags; // 视频标签
+    private String createdAt;
+    private String updatedAt;
 
     public Video() {}
 
-    public Video(String videoId, String url, String title, String author, String avatar,
+    public Video(long videoId, String url, String title, String author, String avatar,
                  int likeCount, int commentCount, int collectCount, int shareCount,
                  String coverUrl, String quality360p, String quality720p) {
         this.videoId = videoId;
@@ -34,11 +42,11 @@ public class Video {
         this.quality720p = quality720p;
     }
 
-    public String getVideoId() {
+    public long getVideoId() {
         return videoId;
     }
 
-    public void setVideoId(String videoId) {
+    public void setVideoId(long videoId) {
         this.videoId = videoId;
     }
 
@@ -128,6 +136,38 @@ public class Video {
 
     public void setQuality720p(String quality720p) {
         this.quality720p = quality720p;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public String getTags() {
+        return tags;
+    }
+
+    public void setTags(String tags) {
+        this.tags = tags;
+    }
+
+    public String getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(String createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(String updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public String getFormattedLikeCount() {

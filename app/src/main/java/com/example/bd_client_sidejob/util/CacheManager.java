@@ -16,6 +16,7 @@ import java.io.File;
 /**
  * 缓存管理器
  * 使用 ExoPlayer 的 CacheDataSource 实现视频缓存，实现秒开效果
+ * 虽然磁盘比内存慢，但比网络 快得多 。磁盘缓存的核心价值是 避免重复网络请求 ，而不是替代内存
  */
 @UnstableApi
 public class CacheManager {
@@ -34,19 +35,22 @@ public class CacheManager {
         // 创建 LRU 缓存驱逐策略（当缓存超过最大大小时，删除最久未使用的文件）
         LeastRecentlyUsedCacheEvictor evictor = new LeastRecentlyUsedCacheEvictor(CACHE_MAX_SIZE);
         
-        // 创建简单缓存
+        // 1. 先创建简单缓存 Cache（底层存储）内部使用
         cache = new SimpleCache(cacheDir, evictor);
         
-        // 创建缓存数据源工厂
+        // 创建缓存数据源工厂（默认数据源，只能从网络读取）
         DataSource.Factory defaultDataSourceFactory = new DefaultDataSource.Factory(
                 context,
                 new DefaultHttpDataSource.Factory()
         );
         
+        // 2️. 再创建 cacheDataSourceFactory（基于 Cache 实现秒开效果）
+        // ExoPlayer 使用
         cacheDataSourceFactory = new CacheDataSource.Factory()
-                .setCache(cache)
-                .setUpstreamDataSourceFactory(defaultDataSourceFactory)
-                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+                .setCache(cache) // 增加缓存功能
+                .setUpstreamDataSourceFactory(defaultDataSourceFactory) // 保留网络读取
+                // 忽略缓存错误，继续从网络读取数据
+                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR); // 容错机制
     }
 
     /**

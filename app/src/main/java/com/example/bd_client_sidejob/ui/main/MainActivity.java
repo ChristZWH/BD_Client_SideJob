@@ -385,7 +385,7 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
     @Override
     protected void initData() {
         // 读取从搜索结果页面传入的目标视频ID和搜索关键词
-        targetVideoId = getIntent().getStringExtra(EXTRA_VIDEO_ID);
+        targetVideoId = getIntent().getLongExtra(EXTRA_VIDEO_ID, -1);
         String searchKeyword = getIntent().getStringExtra(EXTRA_SEARCH_KEYWORD);
 
         // 初始化播放器管理器（用于预加载）
@@ -458,34 +458,22 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
                 // 4. 获取 VideoPlayerController
                 VideoPlayerController controller = playerControllers.get(position);
                 if (controller == null) {
-                    // 优先从 PlayerManager 获取预加载的播放器（秒开路径）
+                    // 统一从 PlayerManager 获取播放器（缓存命中 / 预加载中 / 降级创建，三者归一）
                     PlayerManager playerManager = null;
                     if (mPresenter != null && mPresenter instanceof MainPresenter) {
                         playerManager = ((MainPresenter) mPresenter).getPlayerManager();
                     }
 
-                    if (playerManager != null && playerManager.isCached(video.getVideoId())) {
-                        // 使用预加载的播放器 —— 只需 attachSurfaceView，不重建 ExoPlayer
-                        controller = playerManager.getPlayer(video.getVideoId(), playerView.getSurfaceView());
+                    if (playerManager != null) {
+                        controller = playerManager.getPlayer(String.valueOf(video.getVideoId()), playerView.getSurfaceView()); // 让内部自己决定是复用还是创建新的ExoPlayer
                         if (controller != null) {
-                            Log.d(TAG, "✓ Using preloaded player for: " + video.getTitle());
+                            Log.d(TAG, "✓ Player obtained for: " + video.getTitle());
                         }
                     }
 
-                    // 如果没有预加载的播放器，创建新的（创建前检查内存）
                     if (controller == null) {
-                        // 内存不足时，跳过创建新播放器，降级显示提示
-                        Runtime runtime = Runtime.getRuntime();
-                        long usedMem = runtime.totalMemory() - runtime.freeMemory();
-                        long maxMem = runtime.maxMemory();
-                        if (usedMem > maxMem * 0.85) {
-                            Log.w(TAG, "Critical memory: skipping player creation for position " + position);
-                            System.gc(); // 主动触发一次 GC
-                            return;
-                        }
-                        controller = new VideoPlayerController();
-                        controller.initialize(this, playerView.getSurfaceView());
-                        Log.d(TAG, "✗ Created new player for: " + video.getTitle());
+                        Log.w(TAG, "Unable to obtain player for position " + position + ", skipping");
+                        return;
                     }
                     playerControllers.put(position, controller);
                 } else {
@@ -549,7 +537,7 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
     }
 
     // 从搜索结果传入的目标视频ID（用于跳转到指定视频）
-    private String targetVideoId;
+    private long targetVideoId = -1;
 
     /**
      * 显示视频列表（兼容旧接口，内部转为 setFeedItems）
@@ -583,15 +571,15 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
     private void afterShowList(List<Video> videos) {
         // 找到目标视频的位置（从搜索结果页面传入）
         int startPosition = 0;
-        if (targetVideoId != null && !targetVideoId.isEmpty()) {
+        if (targetVideoId >= 0) {
             for (int i = 0; i < adapter.getItemCount(); i++) {
                 Video v = adapter.getVideoAtPosition(i);
-                if (v != null && targetVideoId.equals(v.getVideoId())) {
+                if (v != null && targetVideoId == v.getVideoId()) {
                     startPosition = i;
                     break;
                 }
             }
-            targetVideoId = null; // 只跳转一次
+            targetVideoId = -1; // 只跳转一次
         }
 
         // 跳转到目标位置并播放
@@ -794,18 +782,19 @@ public class MainActivity extends BaseActivity<MainContract.Presenter> implement
     // ==================== 底部相关搜索功能 ====================
 
     /**
-     * 加载相关搜索数据
+     * 加载相关搜索数据（网络优先 + Mock 降级）
      */
     private void loadRelatedSearch() {
-        // 从 Mock 数据中获取相关搜索关键词
-        relatedKeywords.clear();
-        String[] keywords = com.example.bd_client_sidejob.data.local.MockVideoData.getRelatedSearchKeywords();
-        for (String keyword : keywords) {
-            relatedKeywords.add(keyword);
-        }
-
-        // 更新UI
-        updateRelatedSearchUI();
+        com.example.bd_client_sidejob.data.repository.SearchRepositoryImpl repo =
+                com.example.bd_client_sidejob.data.repository.SearchRepositoryImpl.getInstance(this);
+        repo.loadRelatedSearchKeywords(keywords -> {
+            relatedKeywords.clear();
+            for (String keyword : keywords) {
+                relatedKeywords.add(keyword);
+            }
+            // 在主线程更新UI
+            runOnUiThread(this::updateRelatedSearchUI);
+        });
     }
 
     /**

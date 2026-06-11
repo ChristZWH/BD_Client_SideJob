@@ -39,7 +39,7 @@ public class PlayerManager {
     // 播放器池（LRU缓存）- 存放已完成预加载的播放器
     private LinkedHashMap<String, VideoPlayerController> playerPool;
 
-    // 预加载任务映射 - 存放正在预加载的任务
+    // 预加载任务映射 - 存放正在预加载的任务（防止重复预加载）；PreloadTask内部封装了 player，因为预加载也需要player
     private Map<String, PreloadTask> preloadingMap;
 
     // 已预加载完成的视频ID集合
@@ -74,7 +74,7 @@ public class PlayerManager {
         }
     }
 
-    // 超时清理 Runnable
+    // 创建超时清理 Runnable对象
     private class PreloadTimeoutTask implements Runnable {
         private final String videoId;
 
@@ -96,7 +96,7 @@ public class PlayerManager {
 
     private PlayerManager(Context context) {
         this.context = context.getApplicationContext();
-        this.config = PreloadConfig.createDefault();
+        this.config = PreloadConfig.createDefault(); // 创建默认开启预加载的配置
         this.statistics = new PreloadStatistics();
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.tempSurfaceMap = new HashMap<>();
@@ -121,15 +121,15 @@ public class PlayerManager {
                     }
                     // 清理临时 SurfaceView 引用
                     tempSurfaceMap.remove(videoId);
-                    return true;
+                    return true; // 淘汰
                 }
-                return false;
+                return false; // 不淘汰
             }
         };
 
         this.preloadingMap = new HashMap<>();
         this.preloadedSet = new HashMap<>();
-        this.preloadExecutor = Executors.newSingleThreadExecutor();
+        this.preloadExecutor = Executors.newSingleThreadExecutor(); // 异步任务执行器，用于后台等待预加载完成
     }
 
     /**
@@ -137,7 +137,7 @@ public class PlayerManager {
      */
     public static PlayerManager getInstance(Context context) {
         if (instance == null) {
-            synchronized (PlayerManager.class) {
+            synchronized (PlayerManager.class) { // 类锁
                 if (instance == null) {
                     instance = new PlayerManager(context);
                 }
@@ -168,7 +168,7 @@ public class PlayerManager {
     }
 
     /**
-     * 获取或创建播放器（非阻塞，主线程安全）
+     * 获取或创建播放器（非阻塞，主线程安全），调用方应该在主线程！
      * 优先从缓存池获取预加载完成的播放器
      * @param videoId 视频ID
      * @param surfaceView 显示视图
@@ -177,7 +177,7 @@ public class PlayerManager {
     public VideoPlayerController getPlayer(String videoId, SurfaceView surfaceView) {
         // 1. 优先从缓存池获取已预加载的播放器（秒开路径）
         synchronized (playerPool) {
-            VideoPlayerController player = playerPool.remove(videoId);
+            VideoPlayerController player = playerPool.remove(videoId); // 返回被移除的值；原子操作：移除并获取对象，避免先 get 再 remove 导致的并发问题
             if (player != null) {
                 // 用轻量的 attachSurfaceView 换 Surface，保留已缓冲的 ExoPlayer
                 // 必须在主线程调用
@@ -251,7 +251,7 @@ public class PlayerManager {
                 return;
             }
 
-            // 检查并发上限
+            // 检查并发上限 一次只能预加载一个视频
             if (preloadingMap.size() >= MAX_CONCURRENT_PRELOAD) {
                 Log.d(TAG, "Preload queue full (" + MAX_CONCURRENT_PRELOAD + "), skipping: " + videoId);
                 return;
@@ -261,13 +261,13 @@ public class PlayerManager {
             PreloadTask task = new PreloadTask(videoId, videoUrl, null);
             preloadingMap.put(videoId, task);
 
-            // 注册超时清理（10 秒后自动取消）
+            // 注册超时清理（8 秒后自动取消）
             mainHandler.postDelayed(new PreloadTimeoutTask(videoId), PRELOAD_TIMEOUT_MS);
 
             Log.d(TAG, "Scheduling preload for: " + videoId);
 
             // 在主线程创建播放器并开始预加载（ExoPlayer必须在主线程创建）
-            mainHandler.post(() -> {
+            mainHandler.post(() -> { // 将任务投递到主线程中，下面的内容回在下一轮消息循环中执行
                 synchronized (preloadingMap) {
                     PreloadTask currentTask = preloadingMap.get(videoId);
                     if (currentTask == null || currentTask.isCancelled) {
@@ -294,7 +294,7 @@ public class PlayerManager {
                     player.initialize(context, tempSurface);
                     currentTask.player = player;
 
-                    // 设置播放状态监听器，监听缓冲完成
+                    // 设置播放状态监听器，监听缓冲完成，然后设置URL
                     player.setPlayStateListener(new VideoPlayerController.PlayStateListener() {
                         @Override
                         public void onPlayStateChanged(boolean isPlaying) {}
@@ -314,19 +314,20 @@ public class PlayerManager {
                         }
 
                         @Override
-                        public void onPrepared() {
+                        public void onPrepared() { // 主线程回调onPrepared() ,preloadExecutor.execute(() -> {...}子线程中继续缓冲
                             // 视频准备完成（首帧已缓冲），让缓冲区继续填充 preloadDurationMs
                             Log.d(TAG, "✓ Preload prepared (buffering...): " + videoId);
 
                             // 在后台线程等待额外缓冲时间
-                            preloadExecutor.execute(() -> {
+                            preloadExecutor.execute(() -> { // 切换至后台线程继续缓冲
                                 try {
                                     // 让播放器继续缓冲 config.preloadDurationMs 毫秒的数据
                                     Thread.sleep(config.preloadDurationMs);
                                 } catch (InterruptedException e) {
                                     Thread.currentThread().interrupt();
                                 }
-
+                                
+                                // 缓冲成功并且没有被取消
                                 if (!currentTask.isCancelled) {
                                     synchronized (preloadingMap) {
                                         synchronized (playerPool) {
@@ -339,11 +340,11 @@ public class PlayerManager {
                                                     // ExoPlayer 必须在主线程访问，post 到主线程释放
                                                     final String finalEldestKey = eldestKey;
                                                     mainHandler.post(() -> {
-                                                        eldestPlayer.release();
+                                                        eldestPlayer.release(); // 确保在主线程中释放 最旧的 player
                                                         Log.d(TAG, "Evicted eldest player (posted to main): " + finalEldestKey);
                                                     });
                                                 }
-                                                tempSurfaceMap.remove(eldestKey);
+                                                tempSurfaceMap.remove(eldestKey); // 预加载完成，释放临时创建的 SurfaceView
                                             }
                                             // 将预加载完成的播放器放入缓存池
                                             playerPool.put(videoId, player);
@@ -389,6 +390,7 @@ public class PlayerManager {
     /**
      * 检查当前内存是否足够创建新播放器
      * 每个 ExoPlayer + MediaCodec 约消耗 40-80MB，这里预留至少 64MB 可用空间
+     * 防止OOM异常
      */
     private boolean hasEnoughMemory() {
         Runtime runtime = Runtime.getRuntime();
@@ -455,7 +457,7 @@ public class PlayerManager {
     public void releaseAll() {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             Log.w(TAG, "releaseAll called from non-main thread, posting to main");
-            mainHandler.post(this::releaseAll);
+            mainHandler.post(this::releaseAll);  // 确保在主线程！（推到主线程）
             return;
         }
 
@@ -470,7 +472,7 @@ public class PlayerManager {
             for (PreloadTask task : preloadingMap.values()) {
                 task.isCancelled = true;
                 if (task.player != null) {
-                    task.player.detachSurface();
+                    task.player.detachSurface(); // 因为在预加载的时候需要 tempSerface，当真正播放的时候使用用户提供的Serface
                     task.player.release();
                 }
             }
@@ -480,12 +482,12 @@ public class PlayerManager {
 
         preloadedSet.clear();
         tempSurfaceMap.clear();
-        preloadExecutor.shutdown();
+        preloadExecutor.shutdown(); // 停止接收新任务
         try {
-            if (!preloadExecutor.awaitTermination(1, TimeUnit.SECONDS)) {
-                preloadExecutor.shutdownNow();
+            if (!preloadExecutor.awaitTermination(1, TimeUnit.SECONDS)) { //等待一秒
+                preloadExecutor.shutdownNow(); // 中断所有正在执行的任务
             }
-        } catch (InterruptedException e) {
+        } catch (InterruptedException e) { // 等待过程中被中断，则强制关闭
             preloadExecutor.shutdownNow();
         }
         Log.d(TAG, "All players released");

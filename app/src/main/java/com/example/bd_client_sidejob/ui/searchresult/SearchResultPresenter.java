@@ -1,16 +1,26 @@
 package com.example.bd_client_sidejob.ui.searchresult;
 
+import android.util.Log;
+
 import com.example.bd_client_sidejob.base.BasePresenter;
-import com.example.bd_client_sidejob.data.local.MockVideoData;
 import com.example.bd_client_sidejob.data.model.Video;
+import com.example.bd_client_sidejob.data.repository.VideoRepository;
+import com.example.bd_client_sidejob.data.repository.VideoRepositoryImpl;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 搜索结果页面 Presenter
+ * 搜索结果页面 Presenter（网络优先 + Mock 降级）
  */
 public class SearchResultPresenter extends BasePresenter<SearchResultContract.View> implements SearchResultContract.Presenter {
+    private static final String TAG = "SearchResultPresenter";
+
+    private final VideoRepository videoRepository;
+
+    public SearchResultPresenter() {
+        this.videoRepository = VideoRepositoryImpl.getInstance();
+    }
 
     @Override
     public void loadSearchResults(String keyword) {
@@ -20,19 +30,26 @@ public class SearchResultPresenter extends BasePresenter<SearchResultContract.Vi
 
         getView().showLoading();
 
-        // 搜索视频
-        List<Video> results = MockVideoData.searchVideos(keyword);
+        // 网络优先搜索
+        videoRepository.searchVideos(keyword, new VideoRepository.SearchVideoCallback() {
+            @Override
+            public void onSuccess(List<Video> results) {
+                if (!isViewAttached()) return;
+                getView().hideLoading();
+                if (results.isEmpty()) {
+                    getView().showEmptyResult();
+                } else {
+                    getView().showSearchResults(results);
+                }
+            }
 
-        if (!isViewAttached()) {
-            return;
-        }
-
-        getView().hideLoading();
-        if (results.isEmpty()) {
-            getView().showEmptyResult();
-        } else {
-            getView().showSearchResults(results);
-        }
+            @Override
+            public void onError(String message) {
+                if (!isViewAttached()) return;
+                getView().hideLoading();
+                getView().showToast(message);
+            }
+        });
     }
 
     @Override
@@ -41,18 +58,26 @@ public class SearchResultPresenter extends BasePresenter<SearchResultContract.Vi
             return;
         }
 
-        // 获取相关搜索推荐
-        String[] relatedKeywords = MockVideoData.getRecommendKeywords();
-        List<String> filtered = new ArrayList<>();
-        
-        // 过滤掉与当前关键词相同的推荐
-        for (String kw : relatedKeywords) {
-            if (!kw.equalsIgnoreCase(keyword)) {
-                filtered.add(kw);
-            }
-        }
+        // 网络优先获取推荐词
+        videoRepository.getRecommendKeywords(new VideoRepository.RecommendKeywordsCallback() {
+            @Override
+            public void onSuccess(String[] keywords) {
+                if (!isViewAttached()) return;
 
-        getView().showRelatedSearch(filtered);
+                List<String> filtered = new ArrayList<>();
+                for (String kw : keywords) {
+                    if (!kw.equalsIgnoreCase(keyword)) {
+                        filtered.add(kw);
+                    }
+                }
+                getView().showRelatedSearch(filtered);
+            }
+
+            @Override
+            public void onError(String message) {
+                // ignore
+            }
+        });
     }
 
     @Override

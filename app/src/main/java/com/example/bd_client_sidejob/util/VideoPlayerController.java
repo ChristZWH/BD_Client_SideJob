@@ -4,8 +4,10 @@ import android.content.Context;
 import android.net.Uri;
 import android.view.SurfaceView;
 
+import androidx.annotation.OptIn;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 
@@ -47,7 +49,7 @@ public class VideoPlayerController {
     private int currentQuality = QUALITY_DEFAULT;
     /** 是否正在进行清晰度切换（用于在持久监听器中区分切换场景） */
     private boolean isQualitySwitching = false;
-    /** 是否是进行中的播放（非预加载），用于区分 URL 失败的清理策略 */
+    /** 是否是进行中的播放（非预加载），用于区分 URL 失败的清理策略（用户看没看到） */
     private boolean isActivePlayback = false;
     /** 进度更新 Handler */
     private android.os.Handler progressHandler;
@@ -104,12 +106,12 @@ public class VideoPlayerController {
     }
 
     /**
-     * 初始化播放器（首次创建时调用）
+     * 初始化播放器（首次创建时调用或完全重建立）
      * 如果已有 ExoPlayer 实例，只换 SurfaceView，不重建播放器（保留已缓冲的数据）
      * @param context 上下文
      * @param surfaceView 视频显示的 SurfaceView
      */
-    public void initialize(Context context, SurfaceView surfaceView) {
+    @OptIn(markerClass = UnstableApi.class) public void initialize(Context context, SurfaceView surfaceView) {
         this.surfaceView = surfaceView;
 
         // 如果已经有播放器实例，只换 Surface，不重建（保留预加载缓冲成果）
@@ -135,7 +137,7 @@ public class VideoPlayerController {
         // 设置视频输出 Surface，将播放器与显示视图绑定
         player.setVideoSurfaceView(surfaceView);
 
-        // 添加播放器监听器（只添加一次）
+        // 添加播放器监听器（只添加一次）；是系统回调，由系统调用
         player.addListener(new Player.Listener() {
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
@@ -203,13 +205,14 @@ public class VideoPlayerController {
             return;
         }
         if (player != null) {
+            // 内部会操作UI 所以需要在主线程调用
             player.setVideoSurfaceView(null);
         }
         this.surfaceView = null;
     }
 
     /**
-     * 设置视频 URL 并开始准备
+     * 设置视频 URL 并开始准备；默认不预加载
      * 如果 URL 与当前已缓冲的相同，则跳过准备（避免重复 prepare）
      * @param url 视频地址
      */
@@ -231,6 +234,7 @@ public class VideoPlayerController {
         if (url != null && url.equals(currentUrl) && isPrepared) {
             android.util.Log.d("VideoPlayer", "Video already prepared for URL, skipping: " + url);
             if (playStateListener != null) {
+                // 直接回调 onPrepared 通知外部准备完成，不再重复下载/解析
                 playStateListener.onPrepared();
             }
             return;
@@ -248,9 +252,11 @@ public class VideoPlayerController {
         player.prepare();
 
         if (preloadMode) {
+            // 预加载模式：不自动播放
             player.setPlayWhenReady(false);
             android.util.Log.d("VideoPlayer", "Preload mode enabled");
         } else {
+            // 非预加载模式：准备好后自动播放
             player.setPlayWhenReady(true);
         }
     }
@@ -451,7 +457,7 @@ public class VideoPlayerController {
                         playStateListener.onPrepared();
                     }
 
-                    // 移除自身，避免重复触发
+                    // 移除自身，避免重复触发，实现一次性监听
                     player.removeListener(this);
 
                     android.util.Log.d("VideoPlayer",
@@ -533,7 +539,7 @@ public class VideoPlayerController {
             @Override
             public void run() {
                 if (player != null && isPlaying() && playStateListener != null) {
-                    playStateListener.onProgressChanged(getCurrentPosition(), getDuration());
+                    playStateListener.onProgressChanged(getCurrentPosition(), getDuration()); // 回调通知 UI 更新
                 }
                 if (player != null && progressHandler != null) {
                     progressHandler.postDelayed(this, 1000);

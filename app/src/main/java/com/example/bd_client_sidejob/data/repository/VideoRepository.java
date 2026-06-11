@@ -12,7 +12,7 @@ public interface VideoRepository {
     void searchVideos(String keyword, SearchVideoCallback callback);
     void getRecommendKeywords(RecommendKeywordsCallback callback);
     void getImageCards(ImageCardsCallback callback);
-    void getVideoById(String videoId, VideoByIdCallback callback);
+    void getVideoById(long videoId, VideoByIdCallback callback);
 
     interface VideoListCallback {
         void onSuccess(VideoList videoList);
@@ -36,6 +36,14 @@ public interface VideoRepository {
 
     interface VideoByIdCallback {
         void onSuccess(Video video);
+        void onError(String message);
+    }
+
+    /**
+     * Feed 回调接口
+     */
+     interface FeedCallback {
+        void onSuccess(List<Object> items, boolean hasMore);
         void onError(String message);
     }
 }

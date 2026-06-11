@@ -26,4 +26,11 @@ public interface SearchRepository {
      * 获取推荐关键词
      */
     String[] getRecommendKeywords();
+
+    /**
+     * 推荐词异步回调
+     */
+    interface RecommendKeywordsCallback {
+        void onSuccess(String[] keywords);
+    }
 }

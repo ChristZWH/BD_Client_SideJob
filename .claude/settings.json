@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import pathlib; pathlib.Path\\('README.md'\\).write_text\\('test', encoding='utf-8'\\); print\\('ok'\\)\")",
+      "Bash(python write_readme.py)",
+      "Bash(python -c ' *)"
+    ]
+  }
+}
